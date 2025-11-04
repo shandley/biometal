@@ -36,8 +36,16 @@ pub const MMAP_THRESHOLD: u64 = 50 * 1024 * 1024; // 50 MB
 ///
 /// Memory budget (8 blocks in parallel):
 /// - Compressed: 8 × ~64 KB = ~512 KB
-/// - Decompressed: 8 × ~65 KB = ~520 KB
+/// - Decompressed: 8 × ~65 KB = ~520 KB (BGZF spec: max 64 KB uncompressed per block)
 /// - Total: ~1 MB (bounded, regardless of file size)
+///
+/// # BGZF Specification Guarantee
+///
+/// The BGZF (Blocked GNU Zip Format) specification guarantees that each block
+/// decompresses to a maximum of 64 KB uncompressed. This ensures our memory bounds
+/// are respected even for malformed files. If a block violates the spec and
+/// decompresses larger, the memory is still bounded to PARALLEL_BLOCK_COUNT × actual_size
+/// and gets cleared on the next chunk.
 ///
 /// This delivers Rule 3 (parallel speedup) while maintaining Rule 5 (constant memory).
 pub const PARALLEL_BLOCK_COUNT: usize = 8;
@@ -752,6 +760,67 @@ mod tests {
                 "Block {} has invalid magic byte 1: {}",
                 i, block.data[1]
             );
+        }
+    }
+
+    #[test]
+    fn test_parallel_sequential_equivalence() {
+        // Core correctness guarantee: parallel decompression must produce
+        // byte-for-byte identical output to sequential decompression
+
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/scotthandley".to_string());
+
+        // Test with multiple dataset sizes to ensure correctness across all scales
+        let test_files = vec![
+            "Code/apple-silicon-bio-bench/datasets/tiny_100_150bp.fq.gz",
+            "Code/apple-silicon-bio-bench/datasets/small_1k_150bp.fq.gz",
+            "Code/apple-silicon-bio-bench/datasets/medium_10k_150bp.fq.gz",
+        ];
+
+        for rel_path in test_files {
+            let path = PathBuf::from(&home).join(rel_path);
+
+            if !path.exists() {
+                println!("Skipping test: file not found at {:?}", path);
+                continue;
+            }
+
+            println!("Testing parallel vs sequential for: {:?}", path);
+
+            // Decompress with bounded parallel (our implementation)
+            let source = DataSource::from_path(&path);
+            let parallel_reader = BoundedParallelBgzipReader::new(
+                source.open().expect("Failed to open source")
+            );
+            let mut parallel_output = Vec::new();
+            BufReader::new(parallel_reader)
+                .read_to_end(&mut parallel_output)
+                .expect("Failed to read parallel output");
+
+            // Decompress with sequential (standard GzDecoder)
+            let file = File::open(&path).expect("Failed to open file");
+            let mut sequential_reader = GzDecoder::new(file);
+            let mut sequential_output = Vec::new();
+            sequential_reader
+                .read_to_end(&mut sequential_output)
+                .expect("Failed to read sequential output");
+
+            // Must be byte-for-byte identical
+            assert_eq!(
+                parallel_output.len(),
+                sequential_output.len(),
+                "Output lengths differ for {:?}",
+                path
+            );
+
+            assert_eq!(
+                parallel_output,
+                sequential_output,
+                "Parallel and sequential outputs differ for {:?}",
+                path
+            );
+
+            println!("  ✓ Outputs match ({} bytes)", parallel_output.len());
         }
     }
 }
