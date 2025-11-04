@@ -1,0 +1,18 @@
+# Rust build artifacts
+/target/
+Cargo.lock
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test files
+*.fastq
+*.fq
+*.sra
+*.gz
+
+# Benchmark results
+/target/criterion/
