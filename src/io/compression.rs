@@ -28,6 +28,20 @@ use std::path::{Path, PathBuf};
 /// - Files ≥50 MB: 2.30-2.55× speedup (APFS prefetching benefit)
 pub const MMAP_THRESHOLD: u64 = 50 * 1024 * 1024; // 50 MB
 
+/// Number of bgzip blocks to decompress in parallel
+///
+/// # Evidence & Memory Budget
+///
+/// Entry 029: Parallel bgzip achieves 6.5× speedup using rayon.
+///
+/// Memory budget (8 blocks in parallel):
+/// - Compressed: 8 × ~64 KB = ~512 KB
+/// - Decompressed: 8 × ~65 KB = ~520 KB
+/// - Total: ~1 MB (bounded, regardless of file size)
+///
+/// This delivers Rule 3 (parallel speedup) while maintaining Rule 5 (constant memory).
+pub const PARALLEL_BLOCK_COUNT: usize = 8;
+
 /// Data source abstraction for local and network streaming
 ///
 /// # Architecture
@@ -301,53 +315,57 @@ fn decompress_block(block: &BgzipBlock) -> io::Result<Vec<u8>> {
     Ok(decompressed)
 }
 
-/// Streaming bgzip reader that processes one block at a time (Rule 5)
+/// Bounded parallel bgzip reader (Rules 3 + 5)
 ///
-/// # Memory Footprint
+/// # Architecture
 ///
-/// Maintains constant memory usage:
-/// - Block header buffer: ~64 KB (typical bgzip compressed block)
-/// - Decompressed buffer: ~65 KB (typical bgzip uncompressed block)
-/// - Total: ~130 KB per reader (constant regardless of file size)
+/// Processes blocks in chunks of PARALLEL_BLOCK_COUNT (8):
+/// 1. Read 8 blocks from input stream
+/// 2. Decompress 8 blocks in parallel using rayon (Rule 3: 6.5× speedup)
+/// 3. Buffer concatenated results
+/// 4. Yield data incrementally
+/// 5. Repeat
+///
+/// # Memory Footprint (Rule 5)
+///
+/// Bounded regardless of file size:
+/// - Compressed blocks: 8 × ~64 KB = ~512 KB
+/// - Decompressed blocks: 8 × ~65 KB = ~520 KB
+/// - Total: ~1 MB (constant, even for 5TB files)
 ///
 /// # Evidence
 ///
-/// Rule 5 (Entry 026): Constant memory streaming (~5 MB)
-/// This reader contributes ~130 KB, leaving room for FASTQ parser buffers
-struct StreamingBgzipReader<R: BufRead> {
+/// - Rule 3 (Entry 029): Parallel bgzip achieves 6.5× speedup
+/// - Rule 5 (Entry 026): Constant memory streaming (~5 MB)
+/// - Combined: Delivers both parallelism AND constant memory
+struct BoundedParallelBgzipReader<R: BufRead> {
     inner: R,
-    /// Buffer for current decompressed block data
-    decompressed_buffer: Vec<u8>,
-    /// Current read position in decompressed buffer
-    buffer_pos: usize,
+    /// Buffer for decompressed data ready to read
+    output_buffer: Vec<u8>,
+    /// Current read position in output_buffer
+    output_pos: usize,
     /// Whether we've reached EOF
     eof: bool,
 }
 
-impl<R: BufRead> StreamingBgzipReader<R> {
+impl<R: BufRead> BoundedParallelBgzipReader<R> {
     fn new(inner: R) -> Self {
         Self {
             inner,
-            decompressed_buffer: Vec::new(),
-            buffer_pos: 0,
+            output_buffer: Vec::new(),
+            output_pos: 0,
             eof: false,
         }
     }
 
-    /// Read and decompress the next bgzip block
-    fn read_next_block(&mut self) -> io::Result<()> {
-        if self.eof {
-            return Ok(());
-        }
-
+    /// Read one bgzip block from stream
+    fn read_one_block(&mut self) -> io::Result<Option<BgzipBlock>> {
         // Read block header to determine block size
         let mut header = [0u8; 18];
         match self.inner.read_exact(&mut header) {
             Ok(_) => {}
             Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                // Clean EOF
-                self.eof = true;
-                return Ok(());
+                return Ok(None); // Clean EOF
             }
             Err(e) => return Err(e),
         }
@@ -366,13 +384,11 @@ impl<R: BufRead> StreamingBgzipReader<R> {
             // Regular gzip, not bgzip - read entire remaining stream
             let mut compressed = header.to_vec();
             self.inner.read_to_end(&mut compressed)?;
-
-            let mut decoder = GzDecoder::new(&compressed[..]);
-            self.decompressed_buffer.clear();
-            decoder.read_to_end(&mut self.decompressed_buffer)?;
-            self.buffer_pos = 0;
-            self.eof = true;
-            return Ok(());
+            let size = compressed.len();
+            return Ok(Some(BgzipBlock {
+                data: compressed,
+                size,
+            }));
         }
 
         // Read XLEN (extra field length)
@@ -413,13 +429,11 @@ impl<R: BufRead> StreamingBgzipReader<R> {
                 let mut compressed = header.to_vec();
                 compressed.extend_from_slice(&extra);
                 self.inner.read_to_end(&mut compressed)?;
-
-                let mut decoder = GzDecoder::new(&compressed[..]);
-                self.decompressed_buffer.clear();
-                decoder.read_to_end(&mut self.decompressed_buffer)?;
-                self.buffer_pos = 0;
-                self.eof = true;
-                return Ok(());
+                let size = compressed.len();
+                return Ok(Some(BgzipBlock {
+                    data: compressed,
+                    size,
+                }));
             }
         };
 
@@ -443,39 +457,76 @@ impl<R: BufRead> StreamingBgzipReader<R> {
         self.inner.read_exact(&mut rest)?;
         block_data.extend_from_slice(&rest);
 
-        // Decompress block
-        let mut decoder = GzDecoder::new(&block_data[..]);
-        self.decompressed_buffer.clear();
-        decoder.read_to_end(&mut self.decompressed_buffer)?;
-        self.buffer_pos = 0;
+        Ok(Some(BgzipBlock {
+            data: block_data,
+            size: block_size,
+        }))
+    }
+
+    /// Read and decompress next chunk of blocks in parallel
+    fn read_next_chunk(&mut self) -> io::Result<()> {
+        if self.eof {
+            return Ok(());
+        }
+
+        // Read up to PARALLEL_BLOCK_COUNT blocks
+        let mut blocks = Vec::with_capacity(PARALLEL_BLOCK_COUNT);
+
+        for _ in 0..PARALLEL_BLOCK_COUNT {
+            match self.read_one_block()? {
+                Some(block) => blocks.push(block),
+                None => {
+                    self.eof = true;
+                    break;
+                }
+            }
+        }
+
+        if blocks.is_empty() {
+            return Ok(());
+        }
+
+        // Decompress blocks in parallel (Rule 3: 6.5× speedup)
+        let decompressed_blocks: Vec<_> = blocks
+            .par_iter()
+            .map(|block| decompress_block(block))
+            .collect::<io::Result<Vec<_>>>()?;
+
+        // Concatenate decompressed blocks into output buffer
+        self.output_buffer.clear();
+        for block_data in decompressed_blocks {
+            self.output_buffer.extend_from_slice(&block_data);
+        }
+        self.output_pos = 0;
 
         Ok(())
     }
 }
 
-impl<R: BufRead> Read for StreamingBgzipReader<R> {
+impl<R: BufRead> Read for BoundedParallelBgzipReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        // If buffer is exhausted, read next block
-        if self.buffer_pos >= self.decompressed_buffer.len() {
+        // If output buffer is exhausted, read and decompress next chunk
+        if self.output_pos >= self.output_buffer.len() {
             if self.eof {
                 return Ok(0); // EOF
             }
 
-            self.read_next_block()?;
+            self.read_next_chunk()?;
 
             // Check if we got any data
-            if self.decompressed_buffer.is_empty() {
+            if self.output_buffer.is_empty() {
                 return Ok(0); // EOF
             }
         }
 
-        // Copy from decompressed buffer to output
-        let available = self.decompressed_buffer.len() - self.buffer_pos;
+        // Copy from output buffer to caller's buffer
+        let available = self.output_buffer.len() - self.output_pos;
         let to_copy = available.min(buf.len());
 
-        buf[..to_copy]
-            .copy_from_slice(&self.decompressed_buffer[self.buffer_pos..self.buffer_pos + to_copy]);
-        self.buffer_pos += to_copy;
+        buf[..to_copy].copy_from_slice(
+            &self.output_buffer[self.output_pos..self.output_pos + to_copy],
+        );
+        self.output_pos += to_copy;
 
         Ok(to_copy)
     }
@@ -552,29 +603,37 @@ pub struct CompressedReader {
 impl CompressedReader {
     /// Create a new compressed reader from a data source
     ///
-    /// # Optimization Stack
+    /// # Optimization Stack (Rules 3-6)
     ///
     /// 1. Opens data source (Rule 6 abstraction)
     /// 2. Applies threshold-based mmap if local file ≥50 MB (Rule 4)
-    /// 3. Streams bgzip blocks one at a time (Rule 5: constant memory)
-    /// 4. Returns buffered reader for constant-memory streaming
+    /// 3. Decompresses blocks in parallel chunks (Rule 3: 6.5× speedup)
+    /// 4. Maintains constant memory (Rule 5: ~1 MB bounded)
     ///
-    /// # Memory Usage
+    /// # Memory Usage (Rule 5)
     ///
-    /// - Previous implementation: Loaded entire file (violated Rule 5)
-    /// - Current implementation: ~130 KB per reader (one bgzip block)
-    /// - For 5TB file: Still ~130 KB (constant memory ✓)
+    /// Bounded regardless of file size:
+    /// - 8 compressed blocks: ~512 KB
+    /// - 8 decompressed blocks: ~520 KB
+    /// - Total: ~1 MB (constant, even for 5TB files)
+    ///
+    /// # Performance (Rule 3)
+    ///
+    /// - Decompresses 8 blocks in parallel using rayon
+    /// - Expected: 6.5× speedup (validated in Entry 029)
+    /// - Maintains constant memory while achieving parallel speedup
     pub fn new(source: DataSource) -> Result<Self> {
         // Open source with smart I/O (Rules 4+6)
         let reader = source.open()?;
 
-        // Wrap in streaming bgzip reader (Rule 5: constant memory)
-        // Decompresses one block at a time (~64 KB compressed → ~65 KB uncompressed)
-        let streaming_reader = StreamingBgzipReader::new(reader);
+        // Wrap in bounded parallel bgzip reader (Rules 3+5 combined)
+        // - Decompresses 8 blocks in parallel (Rule 3: 6.5× speedup)
+        // - Bounded memory: ~1 MB (Rule 5: constant regardless of file size)
+        let parallel_reader = BoundedParallelBgzipReader::new(reader);
 
         // Wrap in buffered reader for efficient line-by-line reading
         Ok(Self {
-            inner: Box::new(BufReader::new(streaming_reader)),
+            inner: Box::new(BufReader::new(parallel_reader)),
         })
     }
 
