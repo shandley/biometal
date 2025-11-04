@@ -1,0 +1,26 @@
+[package]
+name = "sra-decoder"
+version = "0.1.0"
+edition = "2021"
+publish = false  # Experiments are not published to crates.io
+
+[dependencies]
+# SRA format dependencies
+flate2 = "1.0"    # For gzip/deflate decompression (quality scores)
+byteorder = "1.5" # For binary format parsing
+
+[dev-dependencies]
+criterion = "0.5"     # For benchmarking (N=30, statistical analysis)
+proptest = "1.4"      # For property-based testing
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+# ARM NEON is in std::arch, no external dependency needed
+
+[[bench]]
+name = "benchmark"
+harness = false
+
+[profile.bench]
+opt-level = 3
+lto = true
+codegen-units = 1
