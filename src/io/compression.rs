@@ -497,7 +497,7 @@ impl<R: BufRead> BoundedParallelBgzipReader<R> {
         // Decompress blocks in parallel (Rule 3: 6.5× speedup)
         let decompressed_blocks: Vec<_> = blocks
             .par_iter()
-            .map(|block| decompress_block(block))
+            .map(decompress_block)
             .collect::<io::Result<Vec<_>>>()?;
 
         // Concatenate decompressed blocks into output buffer
@@ -574,7 +574,7 @@ pub fn decompress_bgzip_parallel(data: &[u8]) -> io::Result<Vec<u8>> {
     // Decompress blocks in parallel (uses all CPU cores)
     let decompressed_blocks: Vec<_> = blocks
         .par_iter()
-        .map(|block| decompress_block(block))
+        .map(decompress_block)
         .collect::<io::Result<Vec<_>>>()?;
 
     // Concatenate decompressed blocks
@@ -729,7 +729,7 @@ mod tests {
         // Bgzip files should have multiple blocks for parallel decompression
         // Even small files typically have 1-10 blocks
         assert!(
-            blocks.len() >= 1,
+            !blocks.is_empty(),
             "Expected at least 1 block, found {}",
             blocks.len()
         );

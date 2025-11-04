@@ -334,4 +334,99 @@ mod tests {
 
         assert!(stream.next().is_none());
     }
+
+    // Property-based tests
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Test that valid FASTA records can be parsed correctly
+        #[test]
+        fn test_fasta_roundtrip(
+            id in "[A-Za-z0-9_]{1,50}",
+            seq in "[ACGTN]{1,500}",
+        ) {
+            let fasta = format!(">{}\n{}\n", id, seq);
+
+            let stream = FastaStream::from_reader(BufReader::new(Cursor::new(fasta.as_bytes())));
+            let records: Vec<_> = stream.collect::<Result<Vec<_>>>().unwrap();
+
+            prop_assert_eq!(records.len(), 1);
+            prop_assert_eq!(&records[0].id, &id);
+            prop_assert_eq!(&records[0].sequence, seq.as_bytes());
+        }
+
+        /// Test that multi-line FASTA sequences are correctly joined
+        #[test]
+        fn test_fasta_multiline(
+            id in "[A-Za-z0-9_]{1,50}",
+            line_count in 2..10usize,
+        ) {
+            let mut fasta = format!(">{}\n", id);
+            let line_seq = "ACGT".repeat(20); // 80 bp per line
+            let full_seq = line_seq.repeat(line_count);
+
+            for _ in 0..line_count {
+                fasta.push_str(&line_seq);
+                fasta.push('\n');
+            }
+
+            let stream = FastaStream::from_reader(BufReader::new(Cursor::new(fasta.as_bytes())));
+            let records: Vec<_> = stream.collect::<Result<Vec<_>>>().unwrap();
+
+            prop_assert_eq!(records.len(), 1);
+            prop_assert_eq!(&records[0].sequence, full_seq.as_bytes());
+        }
+
+        /// Test that multiple FASTA records can be parsed
+        #[test]
+        fn test_fasta_multiple_records(
+            records_count in 1..10usize,
+        ) {
+            let mut fasta = String::new();
+            for i in 0..records_count {
+                let seq = "ACGT".repeat(25);
+                fasta.push_str(&format!(">seq_{}\n{}\n", i, seq));
+            }
+
+            let stream = FastaStream::from_reader(BufReader::new(Cursor::new(fasta.as_bytes())));
+            let records: Vec<_> = stream.collect::<Result<Vec<_>>>().unwrap();
+
+            prop_assert_eq!(records.len(), records_count);
+            for (i, record) in records.iter().enumerate() {
+                prop_assert_eq!(&record.id, &format!("seq_{}", i));
+            }
+        }
+
+        /// Test that FASTA descriptions are stripped (only ID kept)
+        #[test]
+        fn test_fasta_description_stripped(
+            id in "[A-Za-z0-9_]{1,50}",
+            description in "[A-Za-z0-9 ]{1,100}",
+            seq in "[ACGT]{10,100}",
+        ) {
+            let fasta = format!(">{} {}\n{}\n", id, description, seq);
+
+            let stream = FastaStream::from_reader(BufReader::new(Cursor::new(fasta.as_bytes())));
+            let records: Vec<_> = stream.collect::<Result<Vec<_>>>().unwrap();
+
+            prop_assert_eq!(records.len(), 1);
+            // Only the ID (before first space) should be kept
+            prop_assert_eq!(&records[0].id, &id);
+        }
+
+        /// Test that invalid headers (missing '>') are rejected
+        #[test]
+        fn test_fasta_invalid_header(
+            id in "[A-Za-z0-9_]{1,50}",
+            seq in "[ACGT]{10,100}",
+        ) {
+            // Missing '>' prefix
+            let fasta = format!("{}\n{}\n", id, seq);
+
+            let stream = FastaStream::from_reader(BufReader::new(Cursor::new(fasta.as_bytes())));
+            let result: Result<Vec<_>> = stream.collect();
+
+            prop_assert!(result.is_err());
+        }
+    }
 }

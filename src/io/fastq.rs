@@ -275,4 +275,81 @@ mod tests {
         let result = stream.next().unwrap();
         assert!(matches!(result, Err(BiometalError::InvalidFastqFormat { .. })));
     }
+
+    // Property-based tests
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Test that valid FASTQ records can be parsed correctly
+        #[test]
+        fn test_fastq_roundtrip(
+            id in "[A-Za-z0-9_]{1,50}",
+            seq in "[ACGTN]{1,500}",
+        ) {
+            let qual = "I".repeat(seq.len());
+            let fastq = format!("@{}\n{}\n+\n{}\n", id, seq, qual);
+
+            let stream = FastqStream::from_reader(BufReader::new(Cursor::new(fastq.as_bytes())));
+            let records: Vec<_> = stream.collect::<Result<Vec<_>>>().unwrap();
+
+            prop_assert_eq!(records.len(), 1);
+            prop_assert_eq!(&records[0].id, &id);
+            prop_assert_eq!(&records[0].sequence, seq.as_bytes());
+            prop_assert_eq!(&records[0].quality, qual.as_bytes());
+        }
+
+        /// Test that FASTQ rejects mismatched sequence and quality lengths
+        #[test]
+        fn test_fastq_rejects_length_mismatch(
+            id in "[A-Za-z0-9_]{1,50}",
+            seq in "[ACGT]{10,20}",
+            qual_len in 21..30usize, // Different length than seq
+        ) {
+            let qual = "I".repeat(qual_len);
+            let fastq = format!("@{}\n{}\n+\n{}\n", id, seq, qual);
+
+            let stream = FastqStream::from_reader(BufReader::new(Cursor::new(fastq.as_bytes())));
+            let result: Result<Vec<_>> = stream.collect();
+
+            // Should detect mismatch
+            prop_assert!(result.is_err());
+        }
+
+        /// Test that multiple valid records can be parsed
+        #[test]
+        fn test_fastq_multiple_records(
+            records_count in 1..10usize,
+        ) {
+            let mut fastq = String::new();
+            for i in 0..records_count {
+                let seq = "ACGT".repeat(10);
+                let qual = "I".repeat(40);
+                fastq.push_str(&format!("@read_{}\n{}\n+\n{}\n", i, seq, qual));
+            }
+
+            let stream = FastqStream::from_reader(BufReader::new(Cursor::new(fastq.as_bytes())));
+            let records: Vec<_> = stream.collect::<Result<Vec<_>>>().unwrap();
+
+            prop_assert_eq!(records.len(), records_count);
+            for (i, record) in records.iter().enumerate() {
+                prop_assert_eq!(&record.id, &format!("read_{}", i));
+            }
+        }
+
+        /// Test that invalid headers are rejected
+        #[test]
+        fn test_fastq_invalid_header(
+            id in "[A-Za-z0-9_]{1,50}",
+            seq in "[ACGT]{10,20}",
+        ) {
+            let qual = "I".repeat(seq.len());
+            // Missing '@' prefix
+            let fastq = format!("{}\n{}\n+\n{}\n", id, seq, qual);
+
+            let stream = FastqStream::from_reader(BufReader::new(Cursor::new(fastq.as_bytes())));
+            let result: Result<Vec<_>> = stream.collect();
+
+            prop_assert!(result.is_err());
+        }
+    }
 }

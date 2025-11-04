@@ -38,7 +38,7 @@ pub type GCContent = f64;
 ///
 /// let sequence = b"GATTACAGATTACA";
 /// let gc = gc_content(sequence);
-/// assert!((gc - 0.357).abs() < 0.001); // ~35.7% GC (5 out of 14)
+/// assert!((gc - 0.286).abs() < 0.001); // ~28.6% GC (4 out of 14: 2G + 2C)
 /// ```
 pub fn gc_content(seq: &[u8]) -> GCContent {
     #[cfg(target_arch = "aarch64")]

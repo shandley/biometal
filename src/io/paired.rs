@@ -248,4 +248,100 @@ mod tests {
             assert_eq!(r2.id, format!("read_{}/2", i + 1));
         }
     }
+
+    // Property-based tests
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Test that paired reads with matching counts can be processed
+        #[test]
+        fn test_paired_matching_counts(
+            records_count in 1..20usize,
+        ) {
+            let mut r1_data = Vec::new();
+            let mut r2_data = Vec::new();
+
+            for i in 0..records_count {
+                let seq = "ACGT".repeat(25);
+                let qual = "I".repeat(100);
+                r1_data.extend_from_slice(format!("@read_{}/1\n{}\n+\n{}\n", i, seq, qual).as_bytes());
+                r2_data.extend_from_slice(format!("@read_{}/2\n{}\n+\n{}\n", i, seq, qual).as_bytes());
+            }
+
+            let stream1 = FastqStream::from_reader(Cursor::new(r1_data));
+            let stream2 = FastqStream::from_reader(Cursor::new(r2_data));
+            let paired = PairedFastqStream::from_streams(stream1, stream2);
+
+            let pairs: Result<Vec<_>> = paired.collect();
+            let pairs = pairs.unwrap();
+
+            prop_assert_eq!(pairs.len(), records_count);
+        }
+
+        /// Test that mismatched counts are detected (R1 longer)
+        #[test]
+        fn test_paired_r1_longer(
+            r1_count in 2..10usize,
+        ) {
+            let r2_count = r1_count - 1;
+
+            let mut r1_data = Vec::new();
+            let mut r2_data = Vec::new();
+
+            for i in 0..r1_count {
+                let seq = "ACGT".repeat(10);
+                let qual = "I".repeat(40);
+                r1_data.extend_from_slice(format!("@read_{}\n{}\n+\n{}\n", i, seq, qual).as_bytes());
+            }
+            for i in 0..r2_count {
+                let seq = "ACGT".repeat(10);
+                let qual = "I".repeat(40);
+                r2_data.extend_from_slice(format!("@read_{}\n{}\n+\n{}\n", i, seq, qual).as_bytes());
+            }
+
+            let stream1 = FastqStream::from_reader(Cursor::new(r1_data));
+            let stream2 = FastqStream::from_reader(Cursor::new(r2_data));
+            let paired = PairedFastqStream::from_streams(stream1, stream2);
+
+            let results: Vec<_> = paired.collect();
+
+            // Should have r2_count successful pairs, then 1 error
+            prop_assert_eq!(results.len(), r1_count);
+            prop_assert!(results.iter().take(r2_count).all(|r| r.is_ok()));
+            prop_assert!(results[r2_count].is_err());
+        }
+
+        /// Test that mismatched counts are detected (R2 longer)
+        #[test]
+        fn test_paired_r2_longer(
+            r2_count in 2..10usize,
+        ) {
+            let r1_count = r2_count - 1;
+
+            let mut r1_data = Vec::new();
+            let mut r2_data = Vec::new();
+
+            for i in 0..r1_count {
+                let seq = "ACGT".repeat(10);
+                let qual = "I".repeat(40);
+                r1_data.extend_from_slice(format!("@read_{}\n{}\n+\n{}\n", i, seq, qual).as_bytes());
+            }
+            for i in 0..r2_count {
+                let seq = "ACGT".repeat(10);
+                let qual = "I".repeat(40);
+                r2_data.extend_from_slice(format!("@read_{}\n{}\n+\n{}\n", i, seq, qual).as_bytes());
+            }
+
+            let stream1 = FastqStream::from_reader(Cursor::new(r1_data));
+            let stream2 = FastqStream::from_reader(Cursor::new(r2_data));
+            let paired = PairedFastqStream::from_streams(stream1, stream2);
+
+            let results: Vec<_> = paired.collect();
+
+            // Should have r1_count successful pairs, then 1 error
+            prop_assert_eq!(results.len(), r2_count);
+            prop_assert!(results.iter().take(r1_count).all(|r| r.is_ok()));
+            prop_assert!(results[r1_count].is_err());
+        }
+    }
 }

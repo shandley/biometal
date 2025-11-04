@@ -3,7 +3,6 @@
 //! This example demonstrates that our bgzip parser correctly identifies
 //! multiple blocks, enabling parallel decompression (Rule 3).
 
-use biometal::io::compression::DataSource;
 use std::path::PathBuf;
 
 fn main() -> biometal::Result<()> {

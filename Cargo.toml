@@ -45,10 +45,9 @@ default = []
 network = ["reqwest", "lru"]  # Enable network streaming (Week 3-4)
 python = ["pyo3"]              # Enable Python bindings (Week 5-6)
 
-# Benchmarks will be added in Week 1-2 implementation
-# [[bench]]
-# name = "operations"
-# harness = false
+[[bench]]
+name = "operations"
+harness = false
 
 [profile.release]
 lto = true
