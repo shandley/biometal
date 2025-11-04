@@ -311,7 +311,7 @@ use biometal::io::{is_sra_accession, sra_to_url};
 if is_sra_accession("SRR390728") {
     // Convert to direct NCBI S3 URL
     let url = sra_to_url("SRR390728")?;
-    // → https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR390/SRR390728/SRR390728
+    // → https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR390728/SRR390728
 }
 ```
 

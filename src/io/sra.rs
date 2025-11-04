@@ -17,21 +17,27 @@
 //! - **SRS** (Sample): Biological sample
 //! - **SRP** (Project/Study): Collection of experiments
 //!
-//! # Example
+//! # Important Limitation
+//!
+//! **SRA files are in NCBI's proprietary binary format**, not FASTQ. Direct streaming
+//! from SRA requires the SRA toolkit to decode the format. This module provides
+//! URL conversion utilities, but actual FASTQ streaming from SRA is not currently
+//! supported without additional tooling.
+//!
+//! For direct HTTP FASTQ streaming, use `DataSource::Http` with FASTQ.gz URLs instead.
+//!
+//! # Example (Experimental)
 //!
 //! ```no_run
-//! use biometal::io::DataSource;
-//! use biometal::FastqStream;
+//! use biometal::io::sra_to_url;
 //!
 //! # fn main() -> biometal::Result<()> {
-//! // Stream directly from SRA (no download)
-//! let source = DataSource::Sra("SRR000001".to_string());
-//! let stream = FastqStream::new(source)?;
+//! // Get SRA file URL (note: returns SRA format, not FASTQ)
+//! let url = sra_to_url("SRR000001")?;
+//! println!("SRA file URL: {}", url);
 //!
-//! for record in stream {
-//!     let record = record?;
-//!     // Process immediately, constant memory
-//! }
+//! // For actual FASTQ streaming, use direct FASTQ.gz URLs:
+//! // let source = DataSource::Http("https://example.com/data.fastq.gz".to_string());
 //! # Ok(())
 //! # }
 //! ```
@@ -40,11 +46,13 @@
 //!
 //! NCBI provides public S3 access:
 //! ```text
-//! SRR000001 → https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR000/SRR000001/SRR000001
-//! SRR123456 → https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR123/SRR123456/SRR123456
+//! SRR000001 → https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR000001/SRR000001
+//! SRR390728 → https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR390728/SRR390728
 //! ```
 //!
-//! The URL structure uses the first 6 characters as a directory prefix.
+//! **Note**: As of 2024, NCBI simplified their S3 structure to use direct accession paths
+//! without intermediate directory prefixes. This pattern is stable and documented in:
+//! https://www.ncbi.nlm.nih.gov/sra/docs/sra-aws-download/
 
 use crate::error::{BiometalError, Result};
 
@@ -73,10 +81,10 @@ const SRA_BASE_URL: &str = "https://sra-pub-run-odp.s3.amazonaws.com/sra";
 /// ```
 /// # use biometal::io::sra::sra_to_url;
 /// let url = sra_to_url("SRR000001")?;
-/// assert_eq!(url, "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR000/SRR000001/SRR000001");
+/// assert_eq!(url, "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR000001/SRR000001");
 ///
-/// let url = sra_to_url("SRR123456")?;
-/// assert_eq!(url, "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR123/SRR123456/SRR123456");
+/// let url = sra_to_url("SRR390728")?;
+/// assert_eq!(url, "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR390728/SRR390728");
 /// # Ok::<(), biometal::BiometalError>(())
 /// ```
 pub fn sra_to_url(accession: &str) -> Result<String> {
@@ -105,11 +113,9 @@ pub fn sra_to_url(accession: &str) -> Result<String> {
         )));
     }
 
-    // Create directory prefix (first 6 characters)
-    let dir_prefix = &accession[..6.min(accession.len())];
-
-    // Build URL: base/prefix/accession/accession
-    let url = format!("{}/{}/{}/{}", SRA_BASE_URL, dir_prefix, accession, accession);
+    // Build URL: base/accession/accession
+    // Note: NCBI changed their S3 structure - no longer uses 6-char prefix directory
+    let url = format!("{}/{}/{}", SRA_BASE_URL, accession, accession);
 
     Ok(url)
 }
@@ -150,7 +156,7 @@ mod tests {
         let url = sra_to_url("SRR000001").unwrap();
         assert_eq!(
             url,
-            "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR000/SRR000001/SRR000001"
+            "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR000001/SRR000001"
         );
     }
 
@@ -159,7 +165,7 @@ mod tests {
         let url = sra_to_url("SRR123456").unwrap();
         assert_eq!(
             url,
-            "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR123/SRR123456/SRR123456"
+            "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR123456/SRR123456"
         );
     }
 
@@ -168,20 +174,20 @@ mod tests {
         let url = sra_to_url("SRR1234567").unwrap();
         assert_eq!(
             url,
-            "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR123/SRR1234567/SRR1234567"
+            "https://sra-pub-run-odp.s3.amazonaws.com/sra/SRR1234567/SRR1234567"
         );
     }
 
     #[test]
     fn test_sra_to_url_different_prefixes() {
         let url = sra_to_url("SRX000001").unwrap();
-        assert!(url.contains("SRX000"));
+        assert!(url.contains("/SRX000001/SRX000001"));
 
         let url = sra_to_url("SRS000001").unwrap();
-        assert!(url.contains("SRS000"));
+        assert!(url.contains("/SRS000001/SRS000001"));
 
         let url = sra_to_url("SRP000001").unwrap();
-        assert!(url.contains("SRP000"));
+        assert!(url.contains("/SRP000001/SRP000001"));
     }
 
     #[test]

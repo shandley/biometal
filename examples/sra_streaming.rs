@@ -88,10 +88,10 @@ fn demo_sra_features() -> biometal::Result<()> {
     println!("------------\n");
 
     println!("NCBI provides public S3 access:");
-    println!("  https://sra-pub-run-odp.s3.amazonaws.com/sra/<prefix>/<accession>/<accession>");
+    println!("  https://sra-pub-run-odp.s3.amazonaws.com/sra/<accession>/<accession>");
     println!();
-    println!("  Where <prefix> = first 6 characters of accession");
-    println!("  Example: SRR000001 → SRR000/SRR000001/SRR000001\n");
+    println!("  Example: SRR000001 → https://...com/sra/SRR000001/SRR000001");
+    println!("  Example: SRR390728 → https://...com/sra/SRR390728/SRR390728\n");
 
     println!("Example Usage (Code):");
     println!("====================\n");
