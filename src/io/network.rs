@@ -683,4 +683,137 @@ mod tests {
         assert_eq!(cache.current_bytes(), 0);
         assert!(cache.get(&key).is_none());
     }
+
+    #[test]
+    fn test_byte_bounded_cache_replace() {
+        let mut cache = ByteBoundedCache::new(1024); // 1 KB cache
+
+        let key = CacheKey {
+            url: "https://example.com/file".to_string(),
+            start: 0,
+            end: 512,
+        };
+
+        // Add 512 byte entry
+        let data1 = Bytes::from(vec![0u8; 512]);
+        cache.put(key.clone(), data1);
+        assert_eq!(cache.len(), 1);
+        assert_eq!(cache.current_bytes(), 512);
+
+        // Replace with 256 byte entry (same key)
+        let data2 = Bytes::from(vec![1u8; 256]);
+        cache.put(key.clone(), data2.clone());
+        assert_eq!(cache.len(), 1);
+        assert_eq!(cache.current_bytes(), 256);
+
+        // Verify new value
+        assert_eq!(cache.get(&key).unwrap(), &data2);
+    }
+
+    #[test]
+    fn test_byte_bounded_cache_clear() {
+        let mut cache = ByteBoundedCache::new(1024);
+
+        // Add some entries
+        for i in 0..5 {
+            let key = CacheKey {
+                url: format!("https://example.com/file{}", i),
+                start: 0,
+                end: 100,
+            };
+            cache.put(key, Bytes::from(vec![0u8; 100]));
+        }
+
+        assert_eq!(cache.len(), 5);
+        assert_eq!(cache.current_bytes(), 500);
+
+        // Clear cache
+        cache.clear();
+        assert_eq!(cache.len(), 0);
+        assert_eq!(cache.current_bytes(), 0);
+    }
+
+    #[test]
+    fn test_cache_stats_empty() {
+        let client = HttpClient::with_cache_size(1024 * 1024).unwrap();
+        let stats = client.cache_stats().unwrap();
+
+        assert_eq!(stats.entries, 0);
+        assert_eq!(stats.current_bytes, 0);
+        assert_eq!(stats.max_bytes, 1024 * 1024);
+    }
+
+    #[test]
+    fn test_clear_cache() {
+        let client = HttpClient::new().unwrap();
+
+        // Clear should succeed even with empty cache
+        assert!(client.clear_cache().is_ok());
+    }
+
+    #[test]
+    fn test_http_client_default() {
+        let client = HttpClient::default();
+        let stats = client.cache_stats().unwrap();
+
+        assert_eq!(stats.entries, 0);
+        assert_eq!(stats.max_bytes, DEFAULT_CACHE_SIZE);
+    }
+
+    #[test]
+    fn test_http_client_custom_cache_size() {
+        let custom_size = 10 * 1024 * 1024; // 10 MB
+        let client = HttpClient::with_cache_size(custom_size).unwrap();
+        let stats = client.cache_stats().unwrap();
+
+        assert_eq!(stats.max_bytes, custom_size);
+    }
+
+    #[test]
+    fn test_cache_key_different_urls() {
+        let key1 = CacheKey {
+            url: "https://example.com/file1.gz".to_string(),
+            start: 0,
+            end: 1024,
+        };
+        let key2 = CacheKey {
+            url: "https://example.com/file2.gz".to_string(),
+            start: 0,
+            end: 1024,
+        };
+
+        assert_ne!(key1, key2);
+    }
+
+    #[test]
+    fn test_cache_key_different_ranges() {
+        let key1 = CacheKey {
+            url: "https://example.com/file.gz".to_string(),
+            start: 0,
+            end: 1024,
+        };
+        let key2 = CacheKey {
+            url: "https://example.com/file.gz".to_string(),
+            start: 1024,
+            end: 2048,
+        };
+        let key3 = CacheKey {
+            url: "https://example.com/file.gz".to_string(),
+            start: 0,
+            end: 2048,
+        };
+
+        assert_ne!(key1, key2);
+        assert_ne!(key1, key3);
+        assert_ne!(key2, key3);
+    }
+
+    #[test]
+    fn test_constants() {
+        // Verify documented constants are as expected
+        assert_eq!(DEFAULT_CACHE_SIZE, 50 * 1024 * 1024);
+        assert_eq!(DEFAULT_TIMEOUT, Duration::from_secs(30));
+        assert_eq!(DEFAULT_MAX_RETRIES, 3);
+        assert_eq!(DEFAULT_PREFETCH_COUNT, 4);
+    }
 }
