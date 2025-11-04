@@ -1,0 +1,25 @@
+[package]
+name = "experiment-name"
+version = "0.1.0"
+edition = "2021"
+publish = false  # Experiments are not published to crates.io
+
+[dependencies]
+# Add dependencies as needed for your experiment
+# Keep minimal - experiments should be self-contained
+
+[dev-dependencies]
+criterion = "0.5"     # For benchmarking (N=30, statistical analysis)
+proptest = "1.4"      # For property-based testing
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+# ARM NEON is in std::arch, no external dependency needed
+
+[[bench]]
+name = "benchmark"
+harness = false
+
+[profile.bench]
+opt-level = 3
+lto = true
+codegen-units = 1

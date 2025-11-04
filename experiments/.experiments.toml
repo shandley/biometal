@@ -1,0 +1,30 @@
+# biometal Experiments Registry
+#
+# This file tracks all experiments, their status, and outcomes.
+# Each experiment follows the scientific method with clear go/no-go criteria.
+
+[[experiment]]
+name = "sra-decoder"
+status = "research"
+hypothesis = "ARM NEON-optimized SRA decoder can achieve 20-40× speedup vs SRA toolkit"
+start_date = "2025-11-05"
+owner = "Scott Handley"
+timeline = "2 weeks research, 4-6 weeks implementation if validated"
+success_criteria = "≥10× speedup with NEON vs scalar, constant memory, streaming architecture"
+decision_date = "TBD"  # After Week 2 research phase
+outcome = "pending"
+
+# Future experiments will be added here as they're proposed
+# Format:
+# [[experiment]]
+# name = "experiment-name"
+# status = "proposed" | "research" | "prototype" | "implementation" | "completed" | "archived"
+# hypothesis = "Clear, testable hypothesis"
+# start_date = "YYYY-MM-DD"
+# owner = "Name"
+# timeline = "Time estimate"
+# success_criteria = "Quantitative go/no-go criteria"
+# decision_date = "YYYY-MM-DD"  # When go/no-go decision was made
+# outcome = "pending" | "go" | "no-go"
+# final_speedup = "X.X×"  # Actual achieved speedup
+# publication = "Paper title / Blog post URL"  # If published
