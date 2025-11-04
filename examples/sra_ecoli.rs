@@ -1,10 +1,22 @@
-//! Real SRA Streaming Example: E. coli Dataset
+//! SRA Streaming Example: E. coli Dataset (Demonstration)
 //!
-//! This example demonstrates streaming from a real NCBI SRA dataset:
+//! **⚠️ IMPORTANT LIMITATION**: This example demonstrates the network streaming
+//! API, but **SRA files are in NCBI's proprietary binary format**, not FASTQ.
+//! Direct FASTQ streaming from SRA requires the SRA toolkit to decode the format.
+//!
+//! This example will successfully fetch the SRA file from NCBI S3 (195 MB),
+//! but will fail when trying to parse it as FASTQ since it's in SRA format.
+//!
+//! **For working FASTQ streaming**, use `DataSource::Http` with FASTQ.gz URLs:
+//! ```ignore
+//! let source = DataSource::Http("https://example.com/ecoli.fastq.gz".to_string());
+//! ```
+//!
+//! ## Dataset Information
+//!
 //! **SRR390728** - E. coli K-12 MG1655 whole genome sequencing
-//!
-//! This dataset is ~40 MB compressed, making it a perfect demonstration
-//! of constant-memory streaming without local downloads.
+//! - Size: ~195 MB (SRA binary format)
+//! - Platform: Illumina Genome Analyzer IIx
 //!
 //! # What This Example Shows
 //!
@@ -57,9 +69,17 @@ use std::time::Instant;
 
 fn main() -> biometal::Result<()> {
     println!("╔═══════════════════════════════════════════════════════════════╗");
-    println!("║  biometal: Real SRA Streaming Example                        ║");
+    println!("║  biometal: SRA Streaming Example (Demonstration)             ║");
     println!("║  Dataset: E. coli K-12 MG1655 (SRR390728)                    ║");
     println!("╚═══════════════════════════════════════════════════════════════╝\n");
+
+    println!("⚠️  IMPORTANT LIMITATION:");
+    println!("   SRA files are in NCBI's proprietary binary format, not FASTQ.");
+    println!("   This example will successfully fetch the file from NCBI S3,");
+    println!("   but will fail when parsing as FASTQ.\n");
+    println!("   For working FASTQ streaming, use DataSource::Http with");
+    println!("   direct FASTQ.gz URLs.\n");
+    println!("   This example demonstrates the network streaming API.\n");
 
     // Get optional limit from command line
     let args: Vec<String> = std::env::args().collect();
@@ -76,9 +96,9 @@ fn main() -> biometal::Result<()> {
     println!("   Organism:     Escherichia coli K-12 MG1655");
     println!("   Platform:     Illumina Genome Analyzer IIx");
     println!("   Strategy:     WGS (Whole Genome Sequencing)");
-    println!("   Size:         ~40 MB compressed");
-    println!("   Reads:        ~250,000 reads");
-    println!("   Read Length:  36 bp\n");
+    println!("   Size:         ~195 MB (SRA binary format)");
+    println!("   Reads:        ~250,000 reads (when decoded)");
+    println!("   Read Length:  36 bp (when decoded)\n");
 
     if let Some(n) = limit {
         println!("⚠️  Processing limit: {} records (demo mode)\n", n);

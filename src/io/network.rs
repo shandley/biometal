@@ -63,8 +63,15 @@ use std::time::Duration;
 /// - Performance: Minimizes re-downloads for common access patterns
 pub const DEFAULT_CACHE_SIZE: usize = 50 * 1024 * 1024; // 50 MB
 
-/// Default HTTP timeout (30 seconds)
-pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Default HTTP timeout (2 minutes)
+///
+/// Large genomics files can be 100+ MB. A 2-minute timeout allows for:
+/// - Initial connection establishment
+/// - First chunk download (64 KB default)
+/// - Slow or congested networks
+///
+/// For smaller files or faster networks, this is conservative but safe.
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Default number of retry attempts
 pub const DEFAULT_MAX_RETRIES: u32 = 3;
@@ -923,7 +930,7 @@ mod tests {
     fn test_constants() {
         // Verify documented constants are as expected
         assert_eq!(DEFAULT_CACHE_SIZE, 50 * 1024 * 1024);
-        assert_eq!(DEFAULT_TIMEOUT, Duration::from_secs(30));
+        assert_eq!(DEFAULT_TIMEOUT, Duration::from_secs(120));
         assert_eq!(DEFAULT_MAX_RETRIES, 3);
         assert_eq!(DEFAULT_PREFETCH_COUNT, 4);
     }
