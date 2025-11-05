@@ -1,305 +1,295 @@
-# biometal: Next Steps Recommendation
+# biometal: Post v1.0.0 Next Steps
 
-**Current Status**: v0.1.0 tagged and pushed ✅
-**Date**: November 4, 2025
-**Review**: Planning documents, roadmap, evidence base
-
----
-
-## Current State Analysis
-
-### ✅ Week 1-2 COMPLETE (v0.1.0)
-
-**Deliverables Shipped**:
-- FASTQ/FASTA streaming parsers (constant ~5 MB memory)
-- Paired-end support (synchronized R1/R2)
-- ARM NEON operations: base_counting (16.7×), gc_content (20.3×), quality_filter (25.1×)
-- Intelligent I/O: Parallel bgzip (6.5×) + smart mmap (2.5×) = 16.3× combined
-- Evidence-based design: All optimizations validated with N=30 statistical rigor
-- **65 tests** (41 unit + 12 property + 12 doctests), **0 failures**
-- Comprehensive benchmarks with criterion
-- Production-quality: Zero unwrap/expect, full error handling
-
-**Architecture Compliance**:
-- ✅ Rule 1: ARM NEON SIMD (16-25× speedup with scalar fallback)
-- ✅ Rule 2: Block-based processing (10K records preserve NEON gains)
-- ✅ Rule 3: Parallel bgzip (bounded 8-block, constant memory)
-- ✅ Rule 4: Smart mmap (≥50 MB threshold, 2.5× speedup)
-- ✅ Rule 5: Constant-memory streaming (~5 MB regardless of file size)
-- ⏳ Rule 6: Network streaming (NOT YET IMPLEMENTED)
-
-**What's Missing for Full v1.0**:
-- Network streaming (Rule 6 - CRITICAL bottleneck mitigation)
-- Python bindings (Week 5-6)
-- Extended operations coverage
-- Cross-platform validation (Graviton, x86_64)
+**Current Status**: v1.0.0 Released and Published ✅
+**Date**: November 5, 2025
+**Distribution**: PyPI (biometal-rs) ✅ | crates.io (biometal) ✅
 
 ---
 
-## Strategic Options
+## v1.0.0 Achievements (COMPLETE)
 
-### Option A: Week 3-4 Network Streaming (RECOMMENDED)
+### ✅ All Original Goals Met
+- ✅ FASTQ/FASTA streaming parsers (constant ~5 MB memory)
+- ✅ ARM NEON operations (16-25× speedup)
+- ✅ Network streaming (HTTP, SRA integration)
+- ✅ Python bindings (PyO3 0.27, Python 3.9-3.14)
+- ✅ Cross-platform testing (Mac ARM, AWS Graviton, x86_64)
+- ✅ Published to PyPI as `biometal-rs`
+- ✅ Published to crates.io as `biometal`
+- ✅ 121 tests passing
+- ✅ Grade A+ (rust-code-quality-reviewer)
 
-**Timeline**: Nov 4-15 (2 weeks)
-**Target**: biometal v0.2.0
-
-**Rationale**:
-1. **Rule 6 Validation**: I/O bottleneck is **264-352× slower** than compute (Entry 028)
-   - Without network streaming: NEON gives only 1.04-1.08× E2E speedup (I/O masks compute gains)
-   - With I/O optimization: Projects to ~17× E2E speedup
-   - **Conclusion**: Network streaming is CRITICAL, not optional
-
-2. **Mission Alignment**: "Democratize bioinformatics" means analyzing 5TB datasets WITHOUT 5TB downloads
-   - Current: Must download entire dataset (days/weeks on slow connections)
-   - With streaming: Start analysis immediately, cache only what's needed
-   - Impact: Makes large-scale genomics accessible to LMIC/small labs
-
-3. **Natural Progression**: Builds on v0.1.0 foundation
-   - DataSource abstraction already exists (Local only)
-   - Compression pipeline ready for network integration
-   - Streaming architecture designed for this
-
-4. **Timeline Efficiency**: Gets v0.2.0 shipped before Thanksgiving
-   - Week 3-4: Nov 4-15 (network streaming)
-   - Week 5-6: Dec 2-13 (Python bindings)
-   - v1.0 release: Dec 15 (on schedule)
-
-**Implementation Plan**:
-
-```
-Week 3 (Nov 4-8): HTTP Streaming Foundation
-├─ Day 1-2: DataSource::Http implementation
-│  └─ src/io/network.rs (HTTP client with reqwest)
-│  └─ Range request support for partial downloads
-│  └─ Error handling (timeouts, retries, network failures)
-│
-├─ Day 3-4: Smart Caching
-│  └─ LRU cache for bgzip blocks (configurable size)
-│  └─ Cache eviction policies
-│  └─ Memory-bounded guarantees
-│
-└─ Day 5: Integration + Testing
-   └─ HTTP + compression pipeline integration
-   └─ Unit tests for network layer
-   └─ Error scenarios (offline, 404, timeouts)
-
-Week 4 (Nov 11-15): Optimization + SRA
-├─ Day 1-2: Background Prefetching
-│  └─ Async prefetch next N blocks
-│  └─ Hide network latency during processing
-│  └─ Bounded concurrency
-│
-├─ Day 3-4: SRA Toolkit Integration
-│  └─ src/io/sra.rs (SRA accession → HTTP URLs)
-│  └─ Optional feature flag (sra)
-│  └─ Examples with real SRA data
-│
-└─ Day 5: Polish + Release
-   └─ Property tests for network edge cases
-   └─ Benchmarks (local vs HTTP streaming)
-   └─ Documentation + examples
-   └─ Tag v0.2.0
-```
-
-**Key Files to Create**:
-1. `src/io/network.rs` (~300 lines): HTTP streaming with range requests
-2. `src/io/cache.rs` (~150 lines): LRU cache for bgzip blocks
-3. `src/io/prefetch.rs` (~100 lines): Background prefetching
-4. `src/io/sra.rs` (~200 lines): SRA accession support
-5. `examples/network_streaming.rs`: Demo HTTP streaming
-6. `tests/network_tests.rs`: Integration tests
-
-**Dependencies to Add**:
-```toml
-[dependencies]
-reqwest = { version = "0.11", features = ["stream", "blocking"] }
-lru = "0.12"
-tokio = { version = "1", features = ["rt-multi-thread"] }  # For async
-```
-
-**Expected Outcomes**:
-- ✅ Rule 6 implemented: Network streaming addresses I/O bottleneck
-- ✅ 5TB dataset analysis without 5TB download
-- ✅ Smart caching balances memory and network
-- ✅ SRA integration enables direct SRA accession streaming
-- ✅ v0.2.0 ready for Week 5-6 Python bindings
-
-**Risks**:
-- Medium: Network code complexity (async, error handling)
-- Low: Dependency on reqwest/tokio (well-established crates)
-- Low: SRA API changes (can adapt)
+### 📊 Evidence Base
+- 1,357 experiments
+- 40,710 measurements (N=30)
+- 6 optimization rules validated
+- Full methodology in apple-silicon-bio-bench
 
 ---
 
-### Option B: Week 5-6 Python Bindings (SKIP NETWORK)
+## Current Priority: Community Feedback
 
-**Timeline**: Nov 4-15 (2 weeks)
-**Target**: biometal v0.2.0 (Python-ready)
+### Week 1 Post-Launch (Nov 5-12)
 
-**Rationale**:
-- Get to Python ecosystem faster
-- Enable Jupyter notebook demos
-- Appeal to ML/data science users
+**Focus**: Monitor, respond, fix
 
-**CONCERNS**:
-- ❌ **Violates Rule 6**: I/O bottleneck remains unaddressed
-- ❌ **Limited utility**: Python users can't access large datasets without download
-- ❌ **Incomplete story**: "Fast library that can't handle large files" is weak messaging
-- ❌ **Technical debt**: Have to retrofit network streaming later (harder)
+1. **Issue Tracking**
+   - Watch GitHub Issues for bug reports
+   - Monitor installation problems
+   - Track platform-specific issues
+   - Respond to questions quickly
 
-**Recommendation**: **NOT RECOMMENDED**. Network streaming is architectural - do it now.
+2. **Usage Monitoring**
+   - PyPI download stats: https://pypistats.org/packages/biometal-rs
+   - crates.io stats: https://crates.io/crates/biometal/stats
+   - docs.rs build status
+   - Community discussion activity
 
----
-
-### Option C: Jump to v1.1 BAM/SAM (AMBITIOUS)
-
-**Timeline**: 4+ weeks
-**Target**: biometal v1.1.0 (BAM support + Metal GPU)
-
-**Rationale**:
-- BAM/SAM is high-value format
-- Metal GPU breakthrough potential (world-first)
-- More technically exciting than network plumbing
-
-**CONCERNS**:
-- ❌ **Scope creep**: BAM is complex (CIGAR, flags, optional fields)
-- ❌ **Missing foundation**: Network streaming needed for large BAM files anyway
-- ❌ **Timeline risk**: Metal GPU is R&D, not guaranteed success
-- ❌ **Dependencies**: Requires noodles integration (new complexity)
-
-**Recommendation**: **NOT RECOMMENDED**. Finish v1.0 FASTQ/FASTA first, then BAM.
+3. **Quick Fixes**
+   - Address critical bugs immediately
+   - Update documentation as needed
+   - Add examples based on user requests
 
 ---
 
-### Option D: Consolidate v0.1.0 (REAL-WORLD TESTING)
+## Potential v1.0.1 (Week 2-3)
 
-**Timeline**: 1-2 weeks
-**Target**: biometal v0.1.1 (bug fixes, polish)
+### Priority: Linux ARM Wheels
 
-**Activities**:
-- Test with real ASBB datasets (tiny → vlarge)
-- Cross-platform testing (Graviton, x86_64)
-- Performance profiling and optimization
+**Issue**: Cross-compilation complexity blocked Linux ARM in v1.0.0
+
+**Options**:
+1. **Use GitHub ARM runners** (if available)
+   - Native ARM build (no cross-compilation)
+   - Clean solution, higher cost
+
+2. **Docker-based cross-compilation**
+   - Set up proper cross-compile environment
+   - More complex but works on x86_64 runners
+
+3. **Community contribution**
+   - Document the issue
+   - Accept PRs from ARM Linux users
+
+**Target**: Linux ARM wheels for v1.0.1 (if demand exists)
+
+### Other v1.0.1 Candidates
+
+- Bug fixes from community feedback
+- Performance improvements from profiling
 - Documentation improvements
-- Community feedback (if public)
-
-**CONCERNS**:
-- ⚠️ **Pauses forward progress**: Delays v1.0 timeline
-- ⚠️ **Limited gains**: v0.1.0 is already production-quality
-- ⚠️ **Premature**: Better to consolidate after v0.2.0 (network streaming)
-
-**Recommendation**: **DEFER**. Do this after v0.2.0 instead (more complete feature set).
+- Additional examples (Jupyter notebooks?)
 
 ---
 
-## Final Recommendation: Option A (Week 3-4 Network Streaming)
+## Future Considerations (v1.1+)
 
-### Why This is the Right Choice
+### Extended Operations
 
-1. **Evidence-Driven**: Rule 6 shows I/O bottleneck is CRITICAL (264-352×)
-   - Network streaming isn't a nice-to-have, it's foundational
-   - Addresses the primary performance bottleneck
+Potential additions based on user demand:
+- Additional k-mer operations
+- More quality metrics
+- Sequence complexity calculations
+- Format conversions
 
-2. **Mission-Critical**: "Democratize bioinformatics" requires network streaming
-   - 5TB datasets become accessible without 5TB downloads
-   - LMIC/small labs can analyze large-scale genomics
-   - Infrastructure for cloud-native genomics
+### Extended Format Support
 
-3. **Natural Progression**: Completes the architectural foundation
-   - v0.1.0: Local file streaming ✅
-   - v0.2.0: Network streaming ✅
-   - v1.0.0: Python bindings + polish ✅
+**If users request**:
+- BAM/SAM parsing (via noodles wrapper)
+- VCF support
+- BED/GTF parsing
+- GFF3 support
 
-4. **Timeline Efficiency**: Ships v1.0.0 by Dec 15 (on schedule)
-   - Week 3-4: Network streaming (Nov 4-15)
-   - Week 5-6: Python bindings (Dec 2-13)
-   - v1.0.0: Dec 15
+### Platform Extensions
 
-5. **Technical Soundness**: Builds on solid v0.1.0 foundation
-   - DataSource abstraction already exists
-   - Compression pipeline ready for integration
-   - Streaming architecture designed for this
+- **Windows support** (untested, needs validation)
+- **Metal GPU acceleration** (Mac-specific, research required)
+- **AWS Batch integration** (cloud-native workflows)
 
-### Immediate Next Steps (This Week)
+### Python Enhancements
 
-**Day 1 (Today)**:
-1. ✅ Review and approve this plan
-2. Create Week 3-4 todo list
-3. Set up network dependencies in Cargo.toml
-4. Create `src/io/network.rs` skeleton
-
-**Day 2-3 (Nov 5-6)**:
-1. Implement DataSource::Http with reqwest
-2. Add range request support
-3. Unit tests for HTTP client
-
-**Day 4-5 (Nov 7-8)**:
-1. LRU cache implementation
-2. Integration with compression pipeline
-3. Property tests for caching
-
-**Week 4 (Nov 11-15)**:
-1. Background prefetching
-2. SRA integration
-3. Examples and documentation
-4. Tag v0.2.0
+- Type stubs (`.pyi` files) for better IDE support
+- Async support for network operations
+- NumPy integration for array operations
+- Pandas DataFrame conversions
 
 ---
 
-## Alternative: 2-Phase Approach (if uncertain)
+## Research Experiments
 
-If you want to validate v0.1.0 before committing to network streaming:
+Active experiment tracking in `experiments/`:
 
-**Phase 1: Quick Validation (2-3 days)**
-- Run v0.1.0 against all ASBB datasets (tiny → vlarge)
-- Verify performance claims hold
-- Test on Graviton/x86_64 (if available)
-- Fix any critical bugs
+### Completed
+- ✅ **sra-decoder** (Nov 5, 2025) - NO-GO
+  - Native ARM SRA decoder not cost-effective
+  - SRA Toolkit wrapper recommended
+  - Time-boxed termination saved 12 days
 
-**Phase 2: Network Streaming (10-12 days)**
-- Proceed with Option A timeline
-- Benefit: Higher confidence in foundation
-- Cost: Delays v0.2.0 by 2-3 days (minor)
+### Potential Future Experiments
 
----
+**Ideas to validate** (if needed):
+1. Metal GPU for k-mer counting
+2. Neural Engine for sequence similarity
+3. Custom compression for genomics data
+4. Distributed processing framework
 
-## Recommended Decision
-
-**Proceed with Week 3-4 Network Streaming (Option A)**
-
-**Rationale Summary**:
-- Evidence-based (Rule 6 validation)
-- Mission-aligned (democratize bioinformatics)
-- Architecturally sound (completes foundation)
-- Timeline-efficient (v1.0.0 by Dec 15)
-- Technically ready (v0.1.0 is solid)
-
-**Expected Outcome**: biometal v0.2.0 by Nov 15 with network streaming, positioning us perfectly for Week 5-6 Python bindings and v1.0.0 release by Dec 15.
+**Process**: Use `experiments/TEMPLATE/` for new research
 
 ---
 
-## Long-Term Vision Alignment
+## Documentation Priorities
 
-This recommendation aligns with the broader roadmap:
+### Immediate
+- [ ] Add community CONTRIBUTING.md
+- [ ] Create Jupyter notebook examples
+- [ ] Add benchmarking guide for users
+- [ ] Video tutorials (installation, basic usage)
 
-**v1.0 (Dec 15)**: Production FASTQ/FASTA library
-- ✅ Streaming parsers
-- ✅ ARM NEON operations
-- ✅ Network streaming
-- ✅ Python bindings
-
-**v1.1 (Jan 12)**: BAM/SAM + Metal GPU breakthrough
-- BAM/SAM parsing (noodles wrapper)
-- NEON CIGAR optimization
-- Metal GPU pileup (world-first)
-
-**v1.2+ (Jan+)**: Comprehensive genomics toolkit
-- Coverage, depth, variant calling
-- Extended format support (BED, VCF, GTF)
-- Neural Engine exploration
+### Nice to Have
+- [ ] Migration guides (from other tools)
+- [ ] Performance tuning guide
+- [ ] Architecture deep-dive blog posts
+- [ ] Conference talk proposals (BOSC, ISMB)
 
 ---
 
-**Recommendation**: Start Week 3-4 Network Streaming tomorrow (Option A)
+## Community Building
 
-Let me know if you'd like to proceed with this plan, or if you'd prefer to explore any of the alternative options!
+### Initial Outreach
+
+**Week 1** (Nov 5-12):
+- Reddit r/rust announcement
+- Reddit r/bioinformatics announcement
+- Twitter/X with #rustlang #bioinformatics
+- Biostars forum post
+
+**Week 2-3**:
+- This Week in Rust submission
+- Hacker News (Show HN)
+- Python Weekly newsletter
+- BioRxiv preprint consideration
+
+### Long-Term
+
+- Conference presentations (BOSC 2026, ISMB 2026)
+- Journal publications:
+  1. DAG Framework: BMC Bioinformatics
+  2. biometal Library: Bioinformatics or JOSS
+  3. Democratization: GigaScience
+- Workshops/tutorials
+- Collaboration with labs/research groups
+
+---
+
+## Maintenance Strategy
+
+### Regular Tasks
+
+**Daily** (Week 1):
+- Check GitHub Issues/Discussions
+- Monitor download stats
+- Respond to questions
+
+**Weekly**:
+- Review PRs
+- Update documentation
+- Triage issues
+- Plan next release
+
+**Monthly**:
+- Dependency updates
+- Security audits
+- Performance review
+- Roadmap adjustment
+
+### Quality Standards
+
+Maintain production quality:
+- All tests passing
+- Zero clippy warnings
+- Documentation complete
+- Examples working
+- Cross-platform validated
+
+---
+
+## Recommended Immediate Actions
+
+1. **Monitor** (This Week)
+   - Watch for first bug reports
+   - Track download patterns
+   - Engage with early users
+
+2. **Announce** (This Week)
+   - Reddit posts
+   - Social media
+   - Community forums
+
+3. **Plan v1.0.1** (Week 2)
+   - Assess Linux ARM demand
+   - Prioritize bug fixes
+   - Schedule release
+
+4. **Future Planning** (Week 3-4)
+   - Review feature requests
+   - Plan v1.1 scope
+   - Consider BAM/SAM support
+
+---
+
+## Success Metrics
+
+### Short-Term (1 month)
+- Download count > 100 (PyPI + crates.io)
+- At least 1 community contribution (issue, PR, or question)
+- Zero critical bugs
+- Positive feedback from users
+
+### Medium-Term (3 months)
+- Regular users (downloads growing)
+- Community adoption (stars, forks)
+- Citation in papers/projects
+- Feature requests aligning with roadmap
+
+### Long-Term (6+ months)
+- Established tool in bioinformatics ecosystem
+- Conference presentations
+- Academic publications
+- Industry adoption
+
+---
+
+## Decision Points
+
+### Now (Nov 5, 2025)
+- **Action**: Monitor and respond
+- **Timeline**: 1 week
+- **Next decision**: Nov 12 (assess v1.0.1 need)
+
+### Nov 12, 2025
+- **Decision**: Release v1.0.1?
+  - If yes: Linux ARM wheels + bug fixes
+  - If no: Continue monitoring
+
+### Dec 2025
+- **Decision**: Plan v1.1 features
+  - Based on community feedback
+  - Align with evidence-based approach
+  - Consider BAM/SAM support
+
+---
+
+## Claude Session Restart Context
+
+When restarting Claude for next session:
+
+1. **Check**: CLAUDE.md "Session Restart Checklist"
+2. **Review**: Recent GitHub Issues/PRs
+3. **Note**: Any user feedback or bug reports
+4. **Context**: v1.0.0 is complete and published
+5. **Focus**: Post-launch support and community engagement
+
+---
+
+**Last Updated**: November 5, 2025 (Post v1.0.0 Publication)
+**Next Review**: November 12, 2025 (1 week post-launch)

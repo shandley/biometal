@@ -510,6 +510,13 @@ See: `experiments/README.md` for full process
 - **Python**: PyO3 0.27 (Python 3.9-3.14)
 - **Platforms**: Mac ARM (optimized), Graviton/x86_64 (portable)
 
+### Distribution
+- **PyPI**: https://pypi.org/project/biometal-rs/ ✅ Published
+  - Install: `pip install biometal-rs`
+  - Import: `import biometal`
+- **crates.io**: https://crates.io/crates/biometal ✅ Published
+  - Install: `cargo add biometal`
+
 ### Platform Support
 1. **Mac ARM** (M1/M2/M3/M4): 16-25× NEON speedup (optimized)
 2. **Linux ARM** (Graviton): 6-10× NEON speedup (portable)
@@ -517,4 +524,43 @@ See: `experiments/README.md` for full process
 
 ---
 
-**Last Updated**: November 5, 2025 (v1.0.0 Release)
+## Session Restart Checklist
+
+When starting a new Claude session:
+
+### Quick Context
+1. **Project**: biometal v1.0.0 - ARM-native bioinformatics library
+2. **Status**: Production release, published to PyPI and crates.io
+3. **Grade**: A+ (rust-code-quality-reviewer)
+4. **Philosophy**: Evidence-based optimization (1,357 experiments, 40,710 measurements)
+
+### Key Files to Reference
+- `CLAUDE.md` (this file) - Development guidelines
+- `OPTIMIZATION_RULES.md` - 6 evidence-based rules
+- `CHANGELOG.md` - Version history
+- `README.md` - User documentation
+- `DOCUMENTATION_REVIEW.md` - Post-publication documentation audit
+
+### Current Work (v1.0.0 Complete)
+- ✅ Core library (FASTQ/FASTA streaming, NEON ops)
+- ✅ Python bindings (PyO3 0.27)
+- ✅ Network streaming (HTTP, SRA)
+- ✅ Cross-platform testing (Mac ARM, Graviton, x86_64)
+- ✅ Published to PyPI (biometal-rs)
+- ✅ Published to crates.io (biometal)
+- ✅ Documentation updated post-publication
+
+### Known State
+- **Package naming**: `biometal-rs` on PyPI, `biometal` on crates.io/GitHub
+- **Linux ARM wheels**: Temporarily disabled for v1.0.0 (cross-compilation complexity)
+- **Next focus**: Community feedback, bug fixes, potential v1.0.1 for Linux ARM
+
+### Important Patterns
+- Always follow evidence-based design (reference OPTIMIZATION_RULES.md)
+- Maintain streaming-first architecture (constant ~5 MB memory)
+- ARM-native with portable fallback (never ARM-only)
+- Use Result types (no panics in library)
+
+---
+
+**Last Updated**: November 5, 2025 (Post v1.0.0 Publication)
