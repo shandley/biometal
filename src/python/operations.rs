@@ -50,7 +50,7 @@ pub fn py_gc_content(sequence: &[u8]) -> PyResult<f64> {
 pub fn py_count_bases(py: Python, sequence: &[u8]) -> PyResult<PyObject> {
     let counts = operations::count_bases(sequence);
 
-    let dict = pyo3::types::PyDict::new_bound(py);
+    let dict = pyo3::types::PyDict::new(py);
     dict.set_item("A", counts[0])?;
     dict.set_item("C", counts[1])?;
     dict.set_item("G", counts[2])?;
