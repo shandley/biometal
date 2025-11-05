@@ -51,6 +51,10 @@ pub mod operations;
 pub mod optimization;
 pub mod types;
 
+// Python bindings (Week 5-6)
+#[cfg(feature = "python")]
+pub mod python;
+
 // Re-export commonly used types
 pub use error::{BiometalError, Result};
 pub use io::{FastaStream, FastqStream, PairedFastqStream};

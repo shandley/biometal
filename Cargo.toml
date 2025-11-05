@@ -1,6 +1,6 @@
 [package]
 name = "biometal"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 authors = ["Scott Handley <scott.handley@example.com>"]
 description = "ARM-native bioinformatics library with streaming architecture and evidence-based optimization"
@@ -30,7 +30,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync"], optional = true
 bytes = { version = "1", optional = true }
 
 # Python bindings (Week 5-6)
-pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
 
 [dev-dependencies]
 criterion = "0.5"       # Benchmarking
@@ -42,6 +42,10 @@ wiremock = "0.6"        # HTTP mock server for integration tests
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"            # For madvise on macOS (Rule 4)
+
+[lib]
+name = "biometal"
+crate-type = ["rlib", "cdylib"]
 
 [features]
 default = ["network"]  # Enable network streaming by default (Rule 6)
