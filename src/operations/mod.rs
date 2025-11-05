@@ -2,9 +2,10 @@
 //!
 //! This module provides:
 //! - Rule 1 (ARM NEON SIMD): 16-25× speedup on ARM platforms with scalar fallback
-//! - Sequence manipulation primitives: reverse complement, trimming, validation
+//! - Sequence manipulation primitives: reverse complement, trimming, masking, validation
 //! - Record-level operations: extract regions, reverse complement records
 //! - Trimming operations: fixed-position and quality-based trimming
+//! - Masking operations: replace low-quality bases with 'N'
 //!
 //! # Organization
 //!
@@ -12,9 +13,11 @@
 //! - `sequence`: Core sequence transformations (reverse complement, etc.)
 //! - `record_ops`: Record-level operations (extract_region, etc.)
 //! - `trimming`: Fixed and quality-based trimming operations
+//! - `masking`: Quality-based masking operations
 
 pub mod base_counting;
 pub mod gc_content;
+pub mod masking;
 pub mod quality_filter;
 pub mod record_ops;
 pub mod sequence;
@@ -41,3 +44,6 @@ pub use trimming::{
     trim_both, trim_end, trim_quality_both, trim_quality_end, trim_quality_start,
     trim_quality_window, trim_start,
 };
+
+// Masking operations
+pub use masking::{count_masked_bases, mask_low_quality, mask_low_quality_copy};
