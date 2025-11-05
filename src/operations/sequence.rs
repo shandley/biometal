@@ -56,12 +56,18 @@
 /// - A (Adenine) ↔ T (Thymine) or U (Uracil)
 /// - G (Guanine) ↔ C (Cytosine)
 ///
-/// Ambiguous (complement preserves meaning):
+/// Ambiguous - 2 bases (complement preserves meaning):
 /// - R (A or G) ↔ Y (C or T)
 /// - W (A or T) ↔ W (A or T) [self-complement]
 /// - S (G or C) ↔ S (G or C) [self-complement]
 /// - K (G or T) ↔ M (A or C)
 /// - N (any) ↔ N (any)
+///
+/// Extended - 3 bases (biological complements):
+/// - B (C/G/T, not A) ↔ V (A/C/G, not T)
+/// - D (A/G/T, not C) ↔ H (A/C/T, not G)
+/// - H (A/C/T, not G) ↔ D (A/G/T, not C)
+/// - V (A/C/G, not T) ↔ B (C/G/T, not A)
 ///
 /// # Evidence
 ///
@@ -89,7 +95,7 @@ const COMPLEMENT_TABLE: [u8; 256] = {
     table[b'U' as usize] = b'A';
     table[b'u' as usize] = b'a';
 
-    // IUPAC ambiguity codes (pass-through with complement)
+    // IUPAC ambiguity codes (standard - 2 bases)
     table[b'R' as usize] = b'Y'; // A or G → C or T
     table[b'Y' as usize] = b'R'; // C or T → A or G
     table[b'W' as usize] = b'W'; // A or T → A or T (self-complement)
@@ -102,6 +108,16 @@ const COMPLEMENT_TABLE: [u8; 256] = {
     table[b's' as usize] = b's';
     table[b'k' as usize] = b'm';
     table[b'm' as usize] = b'k';
+
+    // IUPAC ambiguity codes (extended - 3 bases)
+    table[b'B' as usize] = b'V'; // C/G/T (not A) → A/C/G (not T)
+    table[b'D' as usize] = b'H'; // A/G/T (not C) → A/C/T (not G)
+    table[b'H' as usize] = b'D'; // A/C/T (not G) → A/G/T (not C)
+    table[b'V' as usize] = b'B'; // A/C/G (not T) → C/G/T (not A)
+    table[b'b' as usize] = b'v';
+    table[b'd' as usize] = b'h';
+    table[b'h' as usize] = b'd';
+    table[b'v' as usize] = b'b';
 
     // N (any base) remains N
     table[b'N' as usize] = b'N';
@@ -801,7 +817,7 @@ mod tests {
         // RNA
         assert_eq!(COMPLEMENT_TABLE[b'U' as usize], b'A');
 
-        // Ambiguous
+        // Ambiguous (2 bases)
         assert_eq!(COMPLEMENT_TABLE[b'R' as usize], b'Y');
         assert_eq!(COMPLEMENT_TABLE[b'Y' as usize], b'R');
         assert_eq!(COMPLEMENT_TABLE[b'W' as usize], b'W'); // Self-complement
@@ -809,7 +825,97 @@ mod tests {
         assert_eq!(COMPLEMENT_TABLE[b'K' as usize], b'M');
         assert_eq!(COMPLEMENT_TABLE[b'M' as usize], b'K');
 
+        // Extended IUPAC (3 bases)
+        assert_eq!(COMPLEMENT_TABLE[b'B' as usize], b'V'); // C/G/T ↔ A/C/G
+        assert_eq!(COMPLEMENT_TABLE[b'D' as usize], b'H'); // A/G/T ↔ A/C/T
+        assert_eq!(COMPLEMENT_TABLE[b'H' as usize], b'D'); // A/C/T ↔ A/G/T
+        assert_eq!(COMPLEMENT_TABLE[b'V' as usize], b'B'); // A/C/G ↔ C/G/T
+
         // N stays N
         assert_eq!(COMPLEMENT_TABLE[b'N' as usize], b'N');
+    }
+
+    #[test]
+    fn test_extended_iupac_codes() {
+        // Test extended IUPAC codes in context
+        assert_eq!(complement(b"BDHV"), b"VHDB");
+
+        // Reverse complement: ATGBDHV → complement → TACVHDB → reverse → BDHVCAT
+        assert_eq!(reverse_complement(b"ATGBDHV"), b"BDHVCAT");
+
+        // Lowercase
+        assert_eq!(complement(b"bdhv"), b"vhdb");
+
+        // Involutive property for extended codes
+        let seq = b"BDHV";
+        let comp = complement(seq);
+        let comp2 = complement(&comp);
+        assert_eq!(comp2, seq);
+
+        // Reverse complement involutive
+        let rc = reverse_complement(b"BDHV");
+        let rc_rc = reverse_complement(&rc);
+        assert_eq!(rc_rc, b"BDHV");
+    }
+
+    #[test]
+    fn test_large_sequence_performance() {
+        // Test no performance cliff at scale
+        // 100K bases should process quickly even with scalar implementation
+
+        let seq = vec![b'A'; 100_000];
+        let start = std::time::Instant::now();
+        let rc = reverse_complement(&seq);
+        let elapsed = start.elapsed();
+
+        // Verify correctness
+        assert_eq!(rc.len(), 100_000);
+        assert_eq!(rc[0], b'T');
+        assert_eq!(rc[99_999], b'T');
+
+        // Performance sanity check: 100K bases in <100ms (scalar)
+        // NEON will be ~10-16× faster (expected <10ms)
+        assert!(
+            elapsed < std::time::Duration::from_millis(100),
+            "Scalar RC should handle 100K bases in <100ms, took {:?}",
+            elapsed
+        );
+    }
+
+    #[test]
+    fn test_large_sequence_inplace() {
+        // Test in-place variant with large sequence
+        let mut seq = vec![b'A'; 100_000];
+
+        let start = std::time::Instant::now();
+        reverse_complement_inplace(&mut seq);
+        let elapsed = start.elapsed();
+
+        // Verify correctness
+        assert_eq!(seq.len(), 100_000);
+        assert_eq!(seq[0], b'T');
+        assert_eq!(seq[99_999], b'T');
+
+        // In-place should be similar or faster (no allocation)
+        assert!(
+            elapsed < std::time::Duration::from_millis(100),
+            "In-place RC should handle 100K bases in <100ms, took {:?}",
+            elapsed
+        );
+    }
+
+    #[test]
+    fn test_all_iupac_codes_valid() {
+        // Verify all IUPAC codes pass validation
+        let all_codes = b"ACGTNRYWSKMBDHVacgtnrywskmbdhv";
+        assert!(is_valid_dna(all_codes));
+
+        // After complement, should still be valid
+        let comp = complement(all_codes);
+        assert!(is_valid_dna(&comp));
+
+        // After reverse complement, should still be valid
+        let rc = reverse_complement(all_codes);
+        assert!(is_valid_dna(&rc));
     }
 }
