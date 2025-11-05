@@ -12,24 +12,49 @@ Python interface for biometal - ARM-native bioinformatics library with streaming
 
 ## Installation
 
+### From PyPI (Recommended)
+
+```bash
+pip install biometal-rs
+```
+
+Verify installation:
+```bash
+python -c "import biometal; print(biometal.__version__)"
+# Output: 1.0.0
+```
+
+**Supported platforms**:
+- macOS ARM (M1/M2/M3/M4) - Pre-built wheels ✅
+- macOS x86_64 (Intel Macs) - Pre-built wheels ✅
+- Linux x86_64 - Pre-built wheels ✅
+- Other platforms - Build from source
+
+**Requirements**: Python 3.9-3.14 (tested and verified)
+
+> **Note**: The package is called `biometal-rs` on PyPI (install name), but you import it as `biometal` in Python code.
+
 ### From Source
 
 ```bash
 # Install maturin
 pip install maturin
 
+# Clone and build
+git clone https://github.com/shandley/biometal
+cd biometal
+
 # Build and install in development mode
-maturin develop --release
+maturin develop --release --features python
 
 # Or build a wheel
-maturin build --release
-pip install target/wheels/biometal_rs-*.whl
+maturin build --release --features python
+pip install target/wheels/biometal-*.whl
 ```
 
-### Requirements
-
-- Python 3.8+
-- Rust 1.70+ (for building from source)
+**Requirements for building**:
+- Python 3.9+
+- Rust 1.70+ (install from https://rustup.rs)
 - ARM processor for NEON acceleration (optional, falls back to scalar)
 
 ## Quick Start

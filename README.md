@@ -8,6 +8,8 @@
 
 [![Crates.io](https://img.shields.io/crates/v/biometal.svg)](https://crates.io/crates/biometal)
 [![Documentation](https://docs.rs/biometal/badge.svg)](https://docs.rs/biometal)
+[![PyPI](https://img.shields.io/pypi/v/biometal-rs.svg)](https://pypi.org/project/biometal-rs/)
+[![Python](https://img.shields.io/pypi/pyversions/biometal-rs.svg)](https://pypi.org/project/biometal-rs/)
 [![License](https://img.shields.io/crates/l/biometal.svg)](https://github.com/shandley/biometal#license)
 
 ---
