@@ -57,7 +57,7 @@ pub mod python;
 
 // Re-export commonly used types
 pub use error::{BiometalError, Result};
-pub use io::{FastaStream, FastqStream, PairedFastqStream};
+pub use io::{FastaStream, FastqStream, FastqWriter, PairedFastqStream};
 pub use types::{FastaRecord, FastqRecord};
 
 /// Library version

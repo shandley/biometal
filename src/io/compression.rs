@@ -12,11 +12,12 @@
 //! - Large files (≥50 MB): 16.3× (6.5 × 2.5, layered optimization)
 
 use crate::error::{BiometalError, Result};
+use crate::io::DataSink;
 use flate2::read::GzDecoder;
 use memmap2::Mmap;
 use rayon::prelude::*;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Read};
+use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 /// Memory-mapped file threshold (50 MB)
@@ -638,17 +639,39 @@ impl CompressedReader {
     /// - Maintains constant memory while achieving parallel speedup
     pub fn new(source: DataSource) -> Result<Self> {
         // Open source with smart I/O (Rules 4+6)
-        let reader = source.open()?;
+        let mut reader = source.open()?;
 
-        // Wrap in bounded parallel bgzip reader (Rules 3+5 combined)
-        // - Decompresses 8 blocks in parallel (Rule 3: 6.5× speedup)
-        // - Bounded memory: ~1 MB (Rule 5: constant regardless of file size)
-        let parallel_reader = BoundedParallelBgzipReader::new(reader);
+        // Peek at first two bytes to detect compression
+        let first_bytes = {
+            let peeked = reader.fill_buf()?;
+            if peeked.len() >= 2 {
+                [peeked[0], peeked[1]]
+            } else if peeked.len() == 1 {
+                [peeked[0], 0]
+            } else {
+                [0, 0]
+            }
+        };
 
-        // Wrap in buffered reader for efficient line-by-line reading
-        Ok(Self {
-            inner: Box::new(BufReader::new(parallel_reader)),
-        })
+        // Check for gzip magic bytes (31, 139)
+        let is_gzipped = first_bytes[0] == 31 && first_bytes[1] == 139;
+
+        if is_gzipped {
+            // Wrap in bounded parallel bgzip reader (Rules 3+5 combined)
+            // - Decompresses 8 blocks in parallel (Rule 3: 6.5× speedup)
+            // - Bounded memory: ~1 MB (Rule 5: constant regardless of file size)
+            let parallel_reader = BoundedParallelBgzipReader::new(reader);
+
+            // Wrap in buffered reader for efficient line-by-line reading
+            Ok(Self {
+                inner: Box::new(BufReader::new(parallel_reader)),
+            })
+        } else {
+            // Uncompressed data - pass through directly
+            Ok(Self {
+                inner: reader,
+            })
+        }
     }
 
     /// Get the inner buffered reader
@@ -673,9 +696,211 @@ impl BufRead for CompressedReader {
     }
 }
 
+// ============================================================================
+// WRITING OPERATIONS (Phase 1.1: Basic Infrastructure)
+// ============================================================================
+
+/// Compressed writer with automatic compression support
+///
+/// This is the write counterpart to `CompressedReader`, enabling biometal
+/// to write data to various formats with the same streaming guarantees.
+///
+/// # Architecture
+///
+/// Mirrors `CompressedReader`:
+/// - `CompressedReader::Plain` ↔ `CompressedWriter::Plain`
+/// - `CompressedReader::Gzip` ↔ `CompressedWriter::Gzip` (Phase 1.2)
+/// - Future: `CompressedWriter::Bgzip` for parallel compression
+///
+/// # Memory Guarantees (Rule 5)
+///
+/// - Write buffer: ~8 KB (BufWriter default)
+/// - Total: ~8 KB constant regardless of output size
+///
+/// # Example
+///
+/// ```no_run
+/// use biometal::io::{DataSink, compression::CompressedWriter};
+/// use std::io::Write;
+///
+/// # fn main() -> std::io::Result<()> {
+/// let sink = DataSink::from_path("output.fq.gz");
+/// let mut writer = CompressedWriter::new(sink)?;
+///
+/// writer.write_all(b"Hello, biometal!\n")?;
+/// writer.finish()?;  // Important: finalizes compression
+/// # Ok(())
+/// # }
+/// ```
+pub enum CompressedWriter {
+    /// Uncompressed writer with buffering
+    Plain(BufWriter<Box<dyn Write>>),
+
+    // Phase 1.2: Add compression variants
+    // Gzip(GzEncoder<BufWriter<Box<dyn Write>>>),
+    // Bgzip(BgzipWriter),
+}
+
+impl CompressedWriter {
+    /// Create a new writer from a data sink
+    ///
+    /// Automatically detects compression format from file extension:
+    /// - `.gz` → gzip compression (Phase 1.2)
+    /// - `.bgz` → bgzip compression (Phase 1.2)
+    /// - other → uncompressed
+    ///
+    /// # Phase 1.1 Status
+    ///
+    /// Currently only supports uncompressed writing. Compression variants
+    /// will be added in Phase 1.2.
+    pub fn new(sink: DataSink) -> io::Result<Self> {
+        match sink {
+            DataSink::Local(path) => {
+                let file = File::create(&path)?;
+
+                // Phase 1.1: Only Plain variant implemented
+                // Phase 1.2: Will add compression detection
+                Self::new_plain(Box::new(file))
+            }
+            DataSink::Stdout => {
+                Self::new_plain(Box::new(io::stdout()))
+            }
+        }
+    }
+
+    /// Create a plain (uncompressed) writer
+    pub fn new_plain(writer: Box<dyn Write>) -> io::Result<Self> {
+        Ok(Self::Plain(BufWriter::new(writer)))
+    }
+
+    /// Flush all buffered data to the underlying writer
+    pub fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::Plain(w) => w.flush(),
+        }
+    }
+
+    /// Finish writing and consume the writer
+    ///
+    /// This ensures all buffered data is flushed and, for compressed formats,
+    /// writes proper EOF markers.
+    ///
+    /// # Important
+    ///
+    /// You should always call `finish()` explicitly rather than relying on `Drop`,
+    /// as `finish()` can return errors that need to be handled.
+    pub fn finish(mut self) -> io::Result<()> {
+        self.flush()
+    }
+}
+
+impl Write for CompressedWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Plain(w) => w.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        CompressedWriter::flush(self)
+    }
+}
+
+impl Drop for CompressedWriter {
+    fn drop(&mut self) {
+        // Best-effort flush on drop
+        // Users should call finish() explicitly to handle errors
+        let _ = self.flush();
+    }
+}
+
+// ============================================================================
+// TESTS
+// ============================================================================
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ========================================================================
+    // Writing Tests (Phase 1.1)
+    // ========================================================================
+
+    #[test]
+    fn test_compressed_writer_plain_basic() {
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_path_buf();
+
+        {
+            let sink = DataSink::from_path(&path);
+            let mut writer = CompressedWriter::new(sink).unwrap();
+
+            writer.write_all(b"Hello, biometal!\n").unwrap();
+            writer.write_all(b"Line 2\n").unwrap();
+            writer.finish().unwrap();
+        }
+
+        // Read back and verify
+        let content = fs::read_to_string(&path).unwrap();
+        assert_eq!(content, "Hello, biometal!\nLine 2\n");
+    }
+
+    #[test]
+    fn test_compressed_writer_stdout() {
+        // Just verify it doesn't panic
+        let sink = DataSink::stdout();
+        let writer = CompressedWriter::new(sink).unwrap();
+        // Don't actually write to stdout in tests
+        drop(writer);
+    }
+
+    #[test]
+    fn test_compressed_writer_large_data() {
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_path_buf();
+
+        {
+            let sink = DataSink::from_path(&path);
+            let mut writer = CompressedWriter::new(sink).unwrap();
+
+            // Write 10K lines
+            for i in 0..10_000 {
+                writeln!(writer, "Line {}", i).unwrap();
+            }
+            writer.finish().unwrap();
+        }
+
+        // Read back and verify line count
+        let content = fs::read_to_string(&path).unwrap();
+        let line_count = content.lines().count();
+        assert_eq!(line_count, 10_000);
+    }
+
+    #[test]
+    fn test_compressed_writer_flush() {
+        use tempfile::NamedTempFile;
+
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_path_buf();
+
+        let sink = DataSink::from_path(&path);
+        let mut writer = CompressedWriter::new(sink).unwrap();
+
+        writer.write_all(b"Test\n").unwrap();
+        writer.flush().unwrap(); // Should not panic
+        writer.write_all(b"More\n").unwrap();
+        writer.finish().unwrap();
+    }
+
+    // ========================================================================
+    // Original Tests
+    // ========================================================================
 
     #[test]
     fn test_mmap_threshold_constant() {

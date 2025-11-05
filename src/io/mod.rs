@@ -7,11 +7,13 @@ pub mod compression;
 mod fasta;
 mod fastq;
 mod paired;
+pub mod sink;
 
-pub use compression::{decompress_bgzip_parallel, CompressedReader, DataSource, MMAP_THRESHOLD};
+pub use compression::{decompress_bgzip_parallel, CompressedReader, CompressedWriter, DataSource, MMAP_THRESHOLD};
 pub use fasta::FastaStream;
-pub use fastq::FastqStream;
+pub use fastq::{FastqStream, FastqWriter};
 pub use paired::PairedFastqStream;
+pub use sink::DataSink;
 
 // Week 3-4: Network streaming (Rule 6)
 #[cfg(feature = "network")]
