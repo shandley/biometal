@@ -101,7 +101,7 @@ Click on each job to see detailed logs:
 
 ### 1. Check Package Page
 
-Go to: https://test.pypi.org/project/biometal/
+Go to: https://test.pypi.org/project/biometal-rs/
 
 You should see:
 - Version: 1.0.0
@@ -191,7 +191,7 @@ print("✓ biometal works!")
 
 TestPyPI packages can be deleted:
 
-1. Go to: https://test.pypi.org/manage/project/biometal/releases/
+1. Go to: https://test.pypi.org/manage/project/biometal-rs/releases/
 2. Select version
 3. Click "Options" → "Delete"
 
@@ -212,7 +212,7 @@ TestPyPI packages can be deleted:
 
 3. **Verify Production**:
    ```bash
-   pip install biometal==1.0.0  # No --index-url needed
+   pip install biometal-rs==1.0.0  # No --index-url needed
    ```
 
 ---

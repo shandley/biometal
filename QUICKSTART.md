@@ -12,7 +12,7 @@ biometal is an ARM-native bioinformatics library that lets you analyze terabyte-
 
 ```bash
 # Option 1: From PyPI (when published)
-pip install biometal
+pip install biometal-rs
 
 # Option 2: From source (requires Rust)
 pip install maturin
@@ -279,7 +279,7 @@ biometal democratizes bioinformatics by:
 
 ### Installation
 ```bash
-pip install biometal  # Python
+pip install biometal-rs  # Python
 cargo add biometal    # Rust
 ```
 

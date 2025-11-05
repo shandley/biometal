@@ -59,7 +59,7 @@ biometal = "1.0"
 
 ```bash
 # Option 1: Install from PyPI (when published)
-pip install biometal
+pip install biometal-rs
 
 # Option 2: Build from source (requires Rust toolchain)
 pip install maturin

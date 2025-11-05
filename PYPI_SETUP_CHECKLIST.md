@@ -30,7 +30,7 @@ Complete guide for publishing biometal v1.0.0 to PyPI. Follow each step in order
 3. Click "Add a new pending publisher"
 4. Fill in the form:
    ```
-   PyPI Project Name: biometal
+   PyPI Project Name: biometal-rs
    Owner: shandley
    Repository name: biometal
    Workflow name: test-pypi-publish.yml
@@ -101,7 +101,7 @@ Complete guide for publishing biometal v1.0.0 to PyPI. Follow each step in order
 
 ### ☐ Step 6: Verify on TestPyPI (2 minutes)
 
-1. Go to: https://test.pypi.org/project/biometal/
+1. Go to: https://test.pypi.org/project/biometal-rs/
 2. Check:
    - [ ] Package exists
    - [ ] Version is 1.0.0
@@ -232,7 +232,7 @@ rm -rf test_env
 3. Click "Add a new pending publisher"
 4. Fill in the form:
    ```
-   PyPI Project Name: biometal
+   PyPI Project Name: biometal-rs
    Owner: shandley
    Repository name: biometal
    Workflow name: publish-pypi.yml
@@ -326,7 +326,7 @@ git push origin v1.0.0
 
 ### ☐ Step 15: Verify on Production PyPI (2 minutes)
 
-1. Go to: https://pypi.org/project/biometal/
+1. Go to: https://pypi.org/project/biometal-rs/
 2. Check:
    - [ ] Package exists
    - [ ] Version is 1.0.0
@@ -354,7 +354,7 @@ python3 -m venv prod_test_env
 source prod_test_env/bin/activate
 
 # Install from PyPI (no --index-url needed!)
-pip install biometal==1.0.0
+pip install biometal-rs==1.0.0
 
 # Verify
 python -c "import biometal; print(f'✓ Version: {biometal.__version__}')"
@@ -394,7 +394,7 @@ rm -rf prod_test_env
 
 Anyone in the world can now run:
 ```bash
-pip install biometal
+pip install biometal-rs
 ```
 
 ---
@@ -537,4 +537,4 @@ Mark when complete:
 
 **Status**: Ready to begin
 **Next Action**: Start with Step 1 (Create TestPyPI account)
-**Goal**: `pip install biometal` works worldwide! 🚀
+**Goal**: `pip install biometal-rs` works worldwide! 🚀

@@ -73,9 +73,9 @@ rustc --version  # Need 1.70+
 
 4. **Verify**:
    - Check workflow: https://github.com/shandley/biometal/actions
-   - Check PyPI: https://pypi.org/project/biometal/
+   - Check PyPI: https://pypi.org/project/biometal-rs/
 
-**Done!** Users can now `pip install biometal`.
+**Done!** Users can now `pip install biometal-rs`.
 
 ---
 
@@ -314,7 +314,7 @@ Use this checklist for each release:
 - [ ] **Create GitHub release** (triggers automated build)
 - [ ] **Verify build** (check GitHub Actions)
 - [ ] **Verify PyPI** (check package appears)
-- [ ] **Test pip install** (`pip install biometal==1.0.0`)
+- [ ] **Test pip install** (`pip install biometal-rs==1.0.0`)
 - [ ] **Announce** (GitHub discussions, Twitter, etc.)
 
 ---
@@ -427,7 +427,7 @@ git tag -s v1.0.0 -m "Release 1.0.0"
 
 ## Resources
 
-- **PyPI**: https://pypi.org/project/biometal/
+- **PyPI**: https://pypi.org/project/biometal-rs/
 - **Maturin Docs**: https://www.maturin.rs/
 - **PyPI Publishing Guide**: https://packaging.python.org/tutorials/packaging-projects/
 - **Trusted Publishing**: https://docs.pypi.org/trusted-publishers/

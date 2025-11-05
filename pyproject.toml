@@ -3,7 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "biometal"
+name = "biometal-rs"
 version = "1.0.0"
 description = "ARM-native bioinformatics library with streaming architecture and evidence-based optimization"
 readme = "README.md"

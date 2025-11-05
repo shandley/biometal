@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/biometal/
+      url: https://test.pypi.org/project/biometal-rs/
     permissions:
       id-token: write  # For trusted publishing
 

@@ -23,7 +23,7 @@ maturin develop --release
 
 # Or build a wheel
 maturin build --release
-pip install target/wheels/biometal-*.whl
+pip install target/wheels/biometal_rs-*.whl
 ```
 
 ### Requirements

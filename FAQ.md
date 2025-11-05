@@ -12,7 +12,7 @@ Common questions and troubleshooting for biometal.
 
 ```bash
 # Option 1: From PyPI (easiest, when published)
-pip install biometal
+pip install biometal-rs
 
 # Option 2: From source (requires Rust toolchain)
 pip install maturin
@@ -34,7 +34,7 @@ maturin develop --release --features python
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-After PyPI publication, you'll be able to `pip install biometal` without Rust.
+After PyPI publication, you'll be able to `pip install biometal-rs` without Rust.
 
 ---
 
