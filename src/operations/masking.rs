@@ -41,6 +41,22 @@
 use crate::error::{BiometalError, Result};
 use crate::types::FastqRecord;
 
+/// Validate that a record's sequence and quality lengths match
+///
+/// # Returns
+///
+/// `Ok(())` if lengths match, otherwise `Err` with detailed message
+fn validate_record_alignment(record: &FastqRecord) -> Result<()> {
+    if record.sequence.len() != record.quality.len() {
+        return Err(BiometalError::InvalidRange(format!(
+            "Sequence length ({}) doesn't match quality length ({})",
+            record.sequence.len(),
+            record.quality.len()
+        )));
+    }
+    Ok(())
+}
+
 /// Mask (replace with 'N') bases below quality threshold
 ///
 /// Replaces bases with quality scores below `min_quality` with 'N'. This
@@ -117,13 +133,7 @@ use crate::types::FastqRecord;
 /// # }
 /// ```
 pub fn mask_low_quality(record: &mut FastqRecord, min_quality: u8) -> Result<()> {
-    if record.sequence.len() != record.quality.len() {
-        return Err(BiometalError::InvalidRange(format!(
-            "Sequence length ({}) doesn't match quality length ({})",
-            record.sequence.len(),
-            record.quality.len()
-        )));
-    }
+    validate_record_alignment(record)?;
 
     let phred_threshold = min_quality + 33; // Convert to Phred+33 encoding
 

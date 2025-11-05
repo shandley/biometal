@@ -14,6 +14,17 @@
 //! 4. **DNA + RNA support**: Handle both T and U nucleotides
 //! 5. **Ambiguous base handling**: Pass-through IUPAC codes (N, R, Y, etc.)
 //!
+//! # RNA Handling Limitation
+//!
+//! **Important**: The complement table is optimized for DNA (A↔T).
+//! - RNA input (containing U) is accepted
+//! - Output always uses T (DNA-style), never U
+//! - Example: `reverse_complement(b"AUGC")` → `b"GCAT"` (not `b"GCAU"`)
+//! - True RNA→RNA complement requires separate implementation
+//!
+//! This is an evidence-based design decision: single static table vs.
+//! parameterized table (complexity without proven need for RNA support).
+//!
 //! # Evidence
 //!
 //! - Scalar implementations: Standard algorithms, no validation needed
@@ -208,6 +219,8 @@ fn reverse_complement_scalar(seq: &[u8]) -> Vec<u8> {
 ///
 /// * `seq` - Mutable DNA/RNA sequence (modified in place)
 ///
+/// **Note**: RNA input produces DNA-style output (T not U). See module docs.
+///
 /// # Performance
 ///
 /// - **Memory**: Zero allocation (in-place transformation)
@@ -259,6 +272,8 @@ pub fn reverse_complement_inplace(seq: &mut [u8]) {
 ///
 /// New vector containing the complement
 ///
+/// **Note**: RNA input produces DNA-style output (T not U). See module docs.
+///
 /// # Examples
 ///
 /// ```
@@ -285,6 +300,8 @@ pub fn complement(seq: &[u8]) -> Vec<u8> {
 /// # Arguments
 ///
 /// * `seq` - Mutable DNA/RNA sequence (modified in place)
+///
+/// **Note**: RNA input produces DNA-style output (T not U). See module docs.
 ///
 /// # Examples
 ///

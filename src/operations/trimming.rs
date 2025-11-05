@@ -51,6 +51,22 @@
 use crate::error::{BiometalError, Result};
 use crate::types::FastqRecord;
 
+/// Validate that a record's sequence and quality lengths match
+///
+/// # Returns
+///
+/// `Ok(())` if lengths match, otherwise `Err` with detailed message
+fn validate_record_alignment(record: &FastqRecord) -> Result<()> {
+    if record.sequence.len() != record.quality.len() {
+        return Err(BiometalError::InvalidRange(format!(
+            "Sequence length ({}) doesn't match quality length ({})",
+            record.sequence.len(),
+            record.quality.len()
+        )));
+    }
+    Ok(())
+}
+
 /// Trim N bases from the 5' end (start of read)
 ///
 /// Removes the first `bases` nucleotides from the sequence and corresponding
@@ -95,13 +111,7 @@ use crate::types::FastqRecord;
 /// # }
 /// ```
 pub fn trim_start(record: &FastqRecord, bases: usize) -> Result<FastqRecord> {
-    if record.sequence.len() != record.quality.len() {
-        return Err(BiometalError::InvalidRange(format!(
-            "Sequence length ({}) doesn't match quality length ({})",
-            record.sequence.len(),
-            record.quality.len()
-        )));
-    }
+    validate_record_alignment(record)?;
 
     let start = bases.min(record.sequence.len());
 
@@ -146,13 +156,7 @@ pub fn trim_start(record: &FastqRecord, bases: usize) -> Result<FastqRecord> {
 /// # }
 /// ```
 pub fn trim_end(record: &FastqRecord, bases: usize) -> Result<FastqRecord> {
-    if record.sequence.len() != record.quality.len() {
-        return Err(BiometalError::InvalidRange(format!(
-            "Sequence length ({}) doesn't match quality length ({})",
-            record.sequence.len(),
-            record.quality.len()
-        )));
-    }
+    validate_record_alignment(record)?;
 
     let end = record.sequence.len().saturating_sub(bases);
 
@@ -198,13 +202,7 @@ pub fn trim_end(record: &FastqRecord, bases: usize) -> Result<FastqRecord> {
 /// # }
 /// ```
 pub fn trim_both(record: &FastqRecord, start_bases: usize, end_bases: usize) -> Result<FastqRecord> {
-    if record.sequence.len() != record.quality.len() {
-        return Err(BiometalError::InvalidRange(format!(
-            "Sequence length ({}) doesn't match quality length ({})",
-            record.sequence.len(),
-            record.quality.len()
-        )));
-    }
+    validate_record_alignment(record)?;
 
     let start = start_bases.min(record.sequence.len());
     let end = record.sequence.len().saturating_sub(end_bases);
@@ -245,6 +243,12 @@ pub fn trim_both(record: &FastqRecord, start_bases: usize, end_bases: usize) -> 
 /// 3. Stop when quality[i] >= min_quality
 /// 4. Return record[0..i+1]
 ///
+/// # Empty Records
+///
+/// If all bases are below the quality threshold, returns an `Ok(FastqRecord)`
+/// with empty sequence and quality vectors. Callers can check using
+/// `record.is_empty()` if empty records need special handling.
+///
 /// # Evidence
 ///
 /// - Scalar-only: Sequential scanning doesn't benefit from NEON
@@ -280,13 +284,7 @@ pub fn trim_both(record: &FastqRecord, start_bases: usize, end_bases: usize) -> 
 /// # }
 /// ```
 pub fn trim_quality_end(record: &FastqRecord, min_quality: u8) -> Result<FastqRecord> {
-    if record.sequence.len() != record.quality.len() {
-        return Err(BiometalError::InvalidRange(format!(
-            "Sequence length ({}) doesn't match quality length ({})",
-            record.sequence.len(),
-            record.quality.len()
-        )));
-    }
+    validate_record_alignment(record)?;
 
     // Find last position with quality >= threshold
     let phred_threshold = min_quality + 33; // Convert to Phred+33 encoding
@@ -321,6 +319,12 @@ pub fn trim_quality_end(record: &FastqRecord, min_quality: u8) -> Result<FastqRe
 ///
 /// New `FastqRecord` with low-quality prefix removed
 ///
+/// # Empty Records
+///
+/// If all bases are below the quality threshold, returns an `Ok(FastqRecord)`
+/// with empty sequence and quality vectors. Callers can check using
+/// `record.is_empty()` if empty records need special handling.
+///
 /// # Examples
 ///
 /// ```
@@ -341,13 +345,7 @@ pub fn trim_quality_end(record: &FastqRecord, min_quality: u8) -> Result<FastqRe
 /// # }
 /// ```
 pub fn trim_quality_start(record: &FastqRecord, min_quality: u8) -> Result<FastqRecord> {
-    if record.sequence.len() != record.quality.len() {
-        return Err(BiometalError::InvalidRange(format!(
-            "Sequence length ({}) doesn't match quality length ({})",
-            record.sequence.len(),
-            record.quality.len()
-        )));
-    }
+    validate_record_alignment(record)?;
 
     // Find first position with quality >= threshold
     let phred_threshold = min_quality + 33;
@@ -390,6 +388,12 @@ pub fn trim_quality_start(record: &FastqRecord, min_quality: u8) -> Result<Fastq
 ///
 /// New `FastqRecord` with low-quality ends removed
 ///
+/// # Empty Records
+///
+/// If all bases are below the quality threshold, returns an `Ok(FastqRecord)`
+/// with empty sequence and quality vectors. Callers can check using
+/// `record.is_empty()` if empty records need special handling.
+///
 /// # Examples
 ///
 /// ```
@@ -411,11 +415,49 @@ pub fn trim_quality_start(record: &FastqRecord, min_quality: u8) -> Result<Fastq
 /// # }
 /// ```
 pub fn trim_quality_both(record: &FastqRecord, min_quality: u8) -> Result<FastqRecord> {
-    // Trim from start first
-    let start_trimmed = trim_quality_start(record, min_quality)?;
+    // Validate alignment
+    if record.sequence.len() != record.quality.len() {
+        return Err(BiometalError::InvalidRange(format!(
+            "Sequence length ({}) doesn't match quality length ({})",
+            record.sequence.len(),
+            record.quality.len()
+        )));
+    }
 
-    // Then trim from end
-    trim_quality_end(&start_trimmed, min_quality)
+    let phred_threshold = min_quality + 33;
+
+    // Find first good position from start
+    let mut start = record.quality.len();
+    for (i, &qual) in record.quality.iter().enumerate() {
+        if qual >= phred_threshold {
+            start = i;
+            break;
+        }
+    }
+
+    // If all low quality, return empty
+    if start == record.quality.len() {
+        return Ok(FastqRecord::new(
+            record.id.clone(),
+            Vec::new(),
+            Vec::new(),
+        ));
+    }
+
+    // Find last good position from end (searching from start position onward)
+    let mut end = start + 1; // If we find no good bases from end, keep at least the first good base
+    for (i, &qual) in record.quality[start..].iter().enumerate().rev() {
+        if qual >= phred_threshold {
+            end = start + i + 1;
+            break;
+        }
+    }
+
+    Ok(FastqRecord::new(
+        record.id.clone(),
+        record.sequence[start..end].to_vec(),
+        record.quality[start..end].to_vec(),
+    ))
 }
 
 /// Trim using sliding window quality average
@@ -440,6 +482,12 @@ pub fn trim_quality_both(record: &FastqRecord, min_quality: u8) -> Result<FastqR
 /// 2. Calculate mean quality for each window
 /// 3. Trim at first window with mean < threshold
 /// 4. Return trimmed record
+///
+/// # Empty Records
+///
+/// If no window meets the quality threshold, returns an `Ok(FastqRecord)`
+/// with empty sequence and quality vectors. Callers can check using
+/// `record.is_empty()` if empty records need special handling.
 ///
 /// # Evidence
 ///
@@ -466,13 +514,7 @@ pub fn trim_quality_both(record: &FastqRecord, min_quality: u8) -> Result<FastqR
 /// # }
 /// ```
 pub fn trim_quality_window(record: &FastqRecord, min_quality: u8, window_size: usize) -> Result<FastqRecord> {
-    if record.sequence.len() != record.quality.len() {
-        return Err(BiometalError::InvalidRange(format!(
-            "Sequence length ({}) doesn't match quality length ({})",
-            record.sequence.len(),
-            record.quality.len()
-        )));
-    }
+    validate_record_alignment(record)?;
 
     if window_size == 0 {
         return Err(BiometalError::InvalidRange(
@@ -831,6 +873,32 @@ mod tests {
 
                 prop_assert_eq!(result1.sequence, result2.sequence);
                 prop_assert_eq!(result1.quality, result2.quality);
+            }
+
+            /// Property: Window size 1 should equal single-base threshold
+            #[test]
+            fn prop_window_size_one_equals_single_threshold(
+                seq_len in 20usize..100,
+                threshold in 10u8..30,
+            ) {
+                let seq = vec![b'A'; seq_len];
+                let mut qual = vec![b'I'; seq_len];
+
+                // Add low-quality tail
+                if seq_len > 10 {
+                    for i in (seq_len - 5)..seq_len {
+                        qual[i] = b'!'; // Q0
+                    }
+                }
+
+                let record = FastqRecord::new("test".to_string(), seq, qual);
+
+                // Window size 1 should behave identically to single-base threshold
+                let window_result = trim_quality_window(&record, threshold, 1).unwrap();
+                let single_result = trim_quality_end(&record, threshold).unwrap();
+
+                prop_assert_eq!(window_result.sequence, single_result.sequence,
+                    "Window size 1 should match single-base trimming");
             }
         }
     }

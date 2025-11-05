@@ -16,6 +16,26 @@ impl FastqRecord {
     pub fn new(id: String, sequence: Vec<u8>, quality: Vec<u8>) -> Self {
         Self { id, sequence, quality }
     }
+
+    /// Check if the record has an empty sequence
+    ///
+    /// Returns `true` if the sequence length is zero. This can occur when
+    /// quality-based trimming removes all bases (all below threshold).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use biometal::FastqRecord;
+    ///
+    /// let empty = FastqRecord::new("read1".to_string(), Vec::new(), Vec::new());
+    /// assert!(empty.is_empty());
+    ///
+    /// let non_empty = FastqRecord::new("read2".to_string(), b"ACGT".to_vec(), b"IIII".to_vec());
+    /// assert!(!non_empty.is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.sequence.is_empty()
+    }
 }
 
 /// A FASTA record
