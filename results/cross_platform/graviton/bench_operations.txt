@@ -1,0 +1,262 @@
+   Compiling biometal v0.2.3 (/home/ec2-user/biometal)
+    Finished `bench` profile [optimized] target(s) in 27.03s
+     Running benches/operations.rs (target/release/deps/operations-412b13267efeb1ef)
+Gnuplot not found, using plotters backend
+Benchmarking base_counting/100
+Benchmarking base_counting/100: Warming up for 3.0000 s
+Benchmarking base_counting/100: Collecting 100 samples in estimated 5.0001 s (228M iterations)
+Benchmarking base_counting/100: Analyzing
+base_counting/100       time:   [21.049 ns 21.124 ns 21.202 ns]
+                        thrpt:  [4.3927 GiB/s 4.4088 GiB/s 4.4246 GiB/s]
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+Benchmarking base_counting/1000
+Benchmarking base_counting/1000: Warming up for 3.0000 s
+Benchmarking base_counting/1000: Collecting 100 samples in estimated 5.0002 s (36M iterations)
+Benchmarking base_counting/1000: Analyzing
+base_counting/1000      time:   [139.16 ns 139.24 ns 139.32 ns]
+                        thrpt:  [6.6846 GiB/s 6.6884 GiB/s 6.6923 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Benchmarking base_counting/10000
+Benchmarking base_counting/10000: Warming up for 3.0000 s
+Benchmarking base_counting/10000: Collecting 100 samples in estimated 5.0020 s (4.0M iterations)
+Benchmarking base_counting/10000: Analyzing
+base_counting/10000     time:   [1.2397 µs 1.2398 µs 1.2399 µs]
+                        thrpt:  [7.5110 GiB/s 7.5118 GiB/s 7.5127 GiB/s]
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) low severe
+  2 (2.00%) low mild
+  2 (2.00%) high mild
+Benchmarking base_counting/100000
+Benchmarking base_counting/100000: Warming up for 3.0000 s
+Benchmarking base_counting/100000: Collecting 100 samples in estimated 5.0514 s (409k iterations)
+Benchmarking base_counting/100000: Analyzing
+base_counting/100000    time:   [12.348 µs 12.349 µs 12.349 µs]
+                        thrpt:  [7.5416 GiB/s 7.5419 GiB/s 7.5422 GiB/s]
+Found 9 outliers among 100 measurements (9.00%)
+  5 (5.00%) high mild
+  4 (4.00%) high severe
+Benchmarking base_counting/1000000
+Benchmarking base_counting/1000000: Warming up for 3.0000 s
+Benchmarking base_counting/1000000: Collecting 100 samples in estimated 5.6086 s (45k iterations)
+Benchmarking base_counting/1000000: Analyzing
+base_counting/1000000   time:   [123.94 µs 124.00 µs 124.04 µs]
+                        thrpt:  [7.5080 GiB/s 7.5108 GiB/s 7.5141 GiB/s]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high severe
+
+Benchmarking gc_content/100
+Benchmarking gc_content/100: Warming up for 3.0000 s
+Benchmarking gc_content/100: Collecting 100 samples in estimated 5.0000 s (278M iterations)
+Benchmarking gc_content/100: Analyzing
+gc_content/100          time:   [17.830 ns 17.859 ns 17.890 ns]
+                        thrpt:  [5.2059 GiB/s 5.2148 GiB/s 5.2234 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high severe
+Benchmarking gc_content/1000
+Benchmarking gc_content/1000: Warming up for 3.0000 s
+Benchmarking gc_content/1000: Collecting 100 samples in estimated 5.0003 s (37M iterations)
+Benchmarking gc_content/1000: Analyzing
+gc_content/1000         time:   [135.94 ns 135.97 ns 136.00 ns]
+                        thrpt:  [6.8478 GiB/s 6.8493 GiB/s 6.8509 GiB/s]
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) low mild
+  2 (2.00%) high mild
+Benchmarking gc_content/10000
+Benchmarking gc_content/10000: Warming up for 3.0000 s
+Benchmarking gc_content/10000: Collecting 100 samples in estimated 5.0012 s (3.8M iterations)
+Benchmarking gc_content/10000: Analyzing
+gc_content/10000        time:   [1.3014 µs 1.3017 µs 1.3019 µs]
+                        thrpt:  [7.1535 GiB/s 7.1548 GiB/s 7.1562 GiB/s]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking gc_content/100000
+Benchmarking gc_content/100000: Warming up for 3.0000 s
+Benchmarking gc_content/100000: Collecting 100 samples in estimated 5.0277 s (389k iterations)
+Benchmarking gc_content/100000: Analyzing
+gc_content/100000       time:   [12.927 µs 12.927 µs 12.928 µs]
+                        thrpt:  [7.2041 GiB/s 7.2044 GiB/s 7.2047 GiB/s]
+Found 4 outliers among 100 measurements (4.00%)
+  1 (1.00%) low mild
+  1 (1.00%) high mild
+  2 (2.00%) high severe
+Benchmarking gc_content/1000000
+Benchmarking gc_content/1000000: Warming up for 3.0000 s
+Benchmarking gc_content/1000000: Collecting 100 samples in estimated 5.2190 s (40k iterations)
+Benchmarking gc_content/1000000: Analyzing
+gc_content/1000000      time:   [129.51 µs 129.55 µs 129.59 µs]
+                        thrpt:  [7.1866 GiB/s 7.1888 GiB/s 7.1911 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+
+Benchmarking mean_quality/100
+Benchmarking mean_quality/100: Warming up for 3.0000 s
+Benchmarking mean_quality/100: Collecting 100 samples in estimated 5.0000 s (515M iterations)
+Benchmarking mean_quality/100: Analyzing
+mean_quality/100        time:   [9.7034 ns 9.7093 ns 9.7154 ns]
+                        thrpt:  [9.5860 GiB/s 9.5921 GiB/s 9.5979 GiB/s]
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking mean_quality/1000
+Benchmarking mean_quality/1000: Warming up for 3.0000 s
+Benchmarking mean_quality/1000: Collecting 100 samples in estimated 5.0000 s (104M iterations)
+Benchmarking mean_quality/1000: Analyzing
+mean_quality/1000       time:   [47.944 ns 47.989 ns 48.031 ns]
+                        thrpt:  [19.390 GiB/s 19.407 GiB/s 19.425 GiB/s]
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+Benchmarking mean_quality/10000
+Benchmarking mean_quality/10000: Warming up for 3.0000 s
+Benchmarking mean_quality/10000: Collecting 100 samples in estimated 5.0003 s (10M iterations)
+Benchmarking mean_quality/10000: Analyzing
+mean_quality/10000      time:   [493.27 ns 493.40 ns 493.54 ns]
+                        thrpt:  [18.870 GiB/s 18.876 GiB/s 18.881 GiB/s]
+Found 3 outliers among 100 measurements (3.00%)
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+Benchmarking mean_quality/100000
+Benchmarking mean_quality/100000: Warming up for 3.0000 s
+Benchmarking mean_quality/100000: Collecting 100 samples in estimated 5.0248 s (1.0M iterations)
+Benchmarking mean_quality/100000: Analyzing
+mean_quality/100000     time:   [4.9993 µs 4.9994 µs 4.9996 µs]
+                        thrpt:  [18.628 GiB/s 18.629 GiB/s 18.629 GiB/s]
+Found 9 outliers among 100 measurements (9.00%)
+  1 (1.00%) low severe
+  3 (3.00%) low mild
+  4 (4.00%) high mild
+  1 (1.00%) high severe
+Benchmarking mean_quality/1000000
+Benchmarking mean_quality/1000000: Warming up for 3.0000 s
+Benchmarking mean_quality/1000000: Collecting 100 samples in estimated 5.0674 s (101k iterations)
+Benchmarking mean_quality/1000000: Analyzing
+mean_quality/1000000    time:   [50.240 µs 50.251 µs 50.262 µs]
+                        thrpt:  [18.529 GiB/s 18.533 GiB/s 18.537 GiB/s]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high severe
+
+Benchmarking operations_comparison_150bp/base_counting
+Benchmarking operations_comparison_150bp/base_counting: Warming up for 3.0000 s
+Benchmarking operations_comparison_150bp/base_counting: Collecting 100 samples in estimated 5.0000 s (144M iterations)
+Benchmarking operations_comparison_150bp/base_counting: Analyzing
+operations_comparison_150bp/base_counting
+                        time:   [34.668 ns 34.808 ns 34.959 ns]
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high severe
+Benchmarking operations_comparison_150bp/gc_content
+Benchmarking operations_comparison_150bp/gc_content: Warming up for 3.0000 s
+Benchmarking operations_comparison_150bp/gc_content: Collecting 100 samples in estimated 5.0001 s (191M iterations)
+Benchmarking operations_comparison_150bp/gc_content: Analyzing
+operations_comparison_150bp/gc_content
+                        time:   [25.918 ns 26.018 ns 26.118 ns]
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) low mild
+  1 (1.00%) high mild
+Benchmarking operations_comparison_150bp/mean_quality
+Benchmarking operations_comparison_150bp/mean_quality: Warming up for 3.0000 s
+Benchmarking operations_comparison_150bp/mean_quality: Collecting 100 samples in estimated 5.0000 s (443M iterations)
+Benchmarking operations_comparison_150bp/mean_quality: Analyzing
+operations_comparison_150bp/mean_quality
+                        time:   [11.239 ns 11.245 ns 11.250 ns]
+Found 4 outliers among 100 measurements (4.00%)
+  3 (3.00%) low mild
+  1 (1.00%) high mild
+
+Benchmarking gc_content_with_n/0%_N
+Benchmarking gc_content_with_n/0%_N: Warming up for 3.0000 s
+Benchmarking gc_content_with_n/0%_N: Collecting 100 samples in estimated 5.0042 s (3.8M iterations)
+Benchmarking gc_content_with_n/0%_N: Analyzing
+gc_content_with_n/0%_N  time:   [1.3006 µs 1.3010 µs 1.3013 µs]
+                        thrpt:  [7.1570 GiB/s 7.1587 GiB/s 7.1605 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) low severe
+  1 (1.00%) high severe
+Benchmarking gc_content_with_n/10%_N
+Benchmarking gc_content_with_n/10%_N: Warming up for 3.0000 s
+Benchmarking gc_content_with_n/10%_N: Collecting 100 samples in estimated 5.0039 s (3.8M iterations)
+Benchmarking gc_content_with_n/10%_N: Analyzing
+gc_content_with_n/10%_N time:   [1.3008 µs 1.3011 µs 1.3014 µs]
+                        thrpt:  [7.1563 GiB/s 7.1579 GiB/s 7.1594 GiB/s]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Benchmarking gc_content_with_n/50%_N
+Benchmarking gc_content_with_n/50%_N: Warming up for 3.0000 s
+Benchmarking gc_content_with_n/50%_N: Collecting 100 samples in estimated 5.0040 s (3.8M iterations)
+Benchmarking gc_content_with_n/50%_N: Analyzing
+gc_content_with_n/50%_N time:   [1.3016 µs 1.3022 µs 1.3027 µs]
+                        thrpt:  [7.1490 GiB/s 7.1518 GiB/s 7.1552 GiB/s]
+Found 5 outliers among 100 measurements (5.00%)
+  2 (2.00%) low severe
+  2 (2.00%) low mild
+  1 (1.00%) high mild
+
+Benchmarking gc_content_scalar/100
+Benchmarking gc_content_scalar/100: Warming up for 3.0000 s
+Benchmarking gc_content_scalar/100: Collecting 100 samples in estimated 5.0000 s (42M iterations)
+Benchmarking gc_content_scalar/100: Analyzing
+gc_content_scalar/100   time:   [107.58 ns 107.62 ns 107.66 ns]
+                        thrpt:  [885.79 MiB/s 886.15 MiB/s 886.52 MiB/s]
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) low mild
+Benchmarking gc_content_scalar/1000
+Benchmarking gc_content_scalar/1000: Warming up for 3.0000 s
+Benchmarking gc_content_scalar/1000: Collecting 100 samples in estimated 5.0032 s (6.2M iterations)
+Benchmarking gc_content_scalar/1000: Analyzing
+gc_content_scalar/1000  time:   [805.16 ns 812.50 ns 822.64 ns]
+                        thrpt:  [1.1321 GiB/s 1.1462 GiB/s 1.1567 GiB/s]
+Benchmarking gc_content_scalar/10000
+Benchmarking gc_content_scalar/10000: Warming up for 3.0000 s
+Benchmarking gc_content_scalar/10000: Collecting 100 samples in estimated 5.0212 s (571k iterations)
+Benchmarking gc_content_scalar/10000: Analyzing
+gc_content_scalar/10000 time:   [8.7150 µs 8.8973 µs 9.0598 µs]
+                        thrpt:  [1.0280 GiB/s 1.0467 GiB/s 1.0686 GiB/s]
+Benchmarking gc_content_scalar/100000
+Benchmarking gc_content_scalar/100000: Warming up for 3.0000 s
+Benchmarking gc_content_scalar/100000: Collecting 100 samples in estimated 5.1611 s (66k iterations)
+Benchmarking gc_content_scalar/100000: Analyzing
+gc_content_scalar/100000
+                        time:   [85.335 µs 85.524 µs 85.675 µs]
+                        thrpt:  [1.0870 GiB/s 1.0890 GiB/s 1.0914 GiB/s]
+
+Benchmarking mean_quality_scalar/100
+Benchmarking mean_quality_scalar/100: Warming up for 3.0000 s
+Benchmarking mean_quality_scalar/100: Collecting 100 samples in estimated 5.0001 s (167M iterations)
+Benchmarking mean_quality_scalar/100: Analyzing
+mean_quality_scalar/100 time:   [13.960 ns 14.139 ns 14.319 ns]
+                        thrpt:  [6.5041 GiB/s 6.5869 GiB/s 6.6713 GiB/s]
+Found 6 outliers among 100 measurements (6.00%)
+  6 (6.00%) high mild
+Benchmarking mean_quality_scalar/1000
+Benchmarking mean_quality_scalar/1000: Warming up for 3.0000 s
+Benchmarking mean_quality_scalar/1000: Collecting 100 samples in estimated 5.0000 s (62M iterations)
+Benchmarking mean_quality_scalar/1000: Analyzing
+mean_quality_scalar/1000
+                        time:   [68.586 ns 68.625 ns 68.665 ns]
+                        thrpt:  [13.563 GiB/s 13.571 GiB/s 13.579 GiB/s]
+Benchmarking mean_quality_scalar/10000
+Benchmarking mean_quality_scalar/10000: Warming up for 3.0000 s
+Benchmarking mean_quality_scalar/10000: Collecting 100 samples in estimated 5.0018 s (9.8M iterations)
+Benchmarking mean_quality_scalar/10000: Analyzing
+mean_quality_scalar/10000
+                        time:   [516.28 ns 517.10 ns 518.01 ns]
+                        thrpt:  [17.979 GiB/s 18.010 GiB/s 18.039 GiB/s]
+Found 8 outliers among 100 measurements (8.00%)
+  7 (7.00%) high mild
+  1 (1.00%) high severe
+Benchmarking mean_quality_scalar/100000
+Benchmarking mean_quality_scalar/100000: Warming up for 3.0000 s
+Benchmarking mean_quality_scalar/100000: Collecting 100 samples in estimated 5.0257 s (899k iterations)
+Benchmarking mean_quality_scalar/100000: Analyzing
+mean_quality_scalar/100000
+                        time:   [5.4506 µs 5.4764 µs 5.5045 µs]
+                        thrpt:  [16.919 GiB/s 17.006 GiB/s 17.087 GiB/s]
+Found 18 outliers among 100 measurements (18.00%)
+  14 (14.00%) low severe
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+

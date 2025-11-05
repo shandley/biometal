@@ -1,7 +1,7 @@
 # biometal: Claude Development Guide
 
 **Project**: biometal - ARM-native bioinformatics library
-**Status**: v0.2.2 (Network Streaming Complete)
+**Status**: v0.2.3 (Robustness Improvements)
 **Current Phase**: Week 5-6 - Python Bindings + Polish (Dec 2-13, 2025)
 **Timeline**: 6 weeks to v1.0.0 (Nov 4 - Dec 15, 2025)
 
@@ -90,6 +90,19 @@ Platform priority: Mac → Linux ARM (Graviton) → x86_64 fallback
 - Network streaming benchmarks
 - Performance tuning documentation
 
+**v0.2.3 (Nov 4, 2025)**: Production-Grade Network Streaming
+- **Phase 1** (4 hours): Quick wins
+  - Bounded thread pool for prefetch (prevents resource exhaustion)
+  - Graceful cache poisoning recovery (better resilience)
+  - Cache size validation (1 MB - 10 GB bounds)
+- **Phase 2** (10 hours): Final polish
+  - Request deduplication (eliminates duplicate network fetches)
+  - Enhanced documentation (thread safety, patterns, troubleshooting)
+  - Comprehensive test coverage (cache pressure, LRU ordering, properties)
+- **Total**: 121 tests passing (87 unit + 7 integration + 27 doc)
+- **Grade**: A+ (rust-code-quality-reviewer)
+- **All 8 quality improvements completed** ✅
+
 ### Current: Week 5-6 - Python Bindings + Polish
 
 **Goals** (Dec 2-13, 2025):
@@ -101,17 +114,26 @@ Platform priority: Mac → Linux ARM (Graviton) → x86_64 fallback
 
 **Key Deliverable**: biometal v1.0.0 (production FASTQ/FASTA library)
 
-### Pending Code Quality Improvements
+### Code Quality Status
 
-From rust-code-quality-reviewer analysis (Grade A):
-1. HIGH: Bounded thread pool for prefetch (2-3 hours)
-2. MEDIUM: Graceful cache poisoning recovery (1 hour)
-3. MEDIUM: Request deduplication (3-4 hours)
-4. LOW: Cache size validation (30 minutes)
-5. LOW: Enhanced documentation (2 hours)
-6. LOW: Additional test coverage (4 hours)
+From rust-code-quality-reviewer analysis:
 
-See: `docs/CODE_QUALITY_IMPROVEMENTS.md`
+**All 8 improvements COMPLETED** ✅ (Grade: A+)
+
+1. ✅ SRA URL pattern fix (CRITICAL) - v0.2.2
+2. ✅ SRA format limitation docs (HIGH) - v0.2.2
+3. ✅ Bounded thread pool for prefetch (HIGH) - v0.2.3
+4. ✅ Graceful cache poisoning recovery (MEDIUM) - v0.2.3
+5. ✅ Cache size validation (LOW) - v0.2.3
+6. ✅ Request deduplication (MEDIUM) - v0.2.3
+7. ✅ Enhanced documentation (LOW) - v0.2.3
+8. ✅ Additional test coverage (LOW) - v0.2.3
+
+**Total Time**: ~14.5 hours
+**Test Growth**: 104 → 121 tests (+17)
+**Status**: Production-ready for v1.0.0
+
+See: `docs/CODE_QUALITY_IMPROVEMENTS.md` for implementation details
 
 ### Recent Experiments
 
@@ -536,10 +558,10 @@ See: `experiments/README.md` for full process
 - Rules: 6 optimization rules (OPTIMIZATION_RULES.md)
 
 ### Current Status
-- Version: v0.2.2 (network streaming complete)
+- Version: v0.2.3 FINAL (production-grade network streaming)
 - Phase: Week 5-6 (Python bindings + polish)
-- Tests: 104 passing
-- Grade: A (rust-code-quality-reviewer)
+- Tests: 121 passing (87 unit + 7 integration + 27 doc)
+- Grade: A+ (rust-code-quality-reviewer, all 8 improvements complete)
 - Next Milestone: v1.0.0 (Dec 15, 2025)
 
 ### Platform Support

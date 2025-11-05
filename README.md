@@ -127,13 +127,25 @@ let gc = operations::gc_content(&sequence)?;
 | 1M sequences | 1,344 MB | 5 MB | 99.5% |
 | **5TB dataset** | **5,000 GB** | **5 MB** | **99.9999%** |
 
-### ARM NEON Speedup
+### ARM NEON Speedup (Mac Apple Silicon)
+
+**Optimized for Apple Silicon** - All optimizations validated on Mac M3 Max (1,357 experiments, N=30):
 
 | Operation | Scalar | NEON | Speedup |
 |-----------|--------|------|---------|
-| Base counting | 315 Kseq/s | 5,254 Kseq/s | 16.7× |
-| GC content | 294 Kseq/s | 5,954 Kseq/s | 20.3× |
-| Quality filter | 245 Kseq/s | 6,143 Kseq/s | 25.1× |
+| Base counting | 315 Kseq/s | 5,254 Kseq/s | **16.7×** |
+| GC content | 294 Kseq/s | 5,954 Kseq/s | **20.3×** |
+| Quality filter | 245 Kseq/s | 6,143 Kseq/s | **25.1×** |
+
+### Cross-Platform Performance (Validated Nov 2025)
+
+| Platform | Base Counting | GC Content | Quality | Status |
+|----------|---------------|------------|---------|--------|
+| **Mac M3** (target) | 16.7× | 20.3× | 25.1× | ✅ Optimized |
+| **AWS Graviton** | 10.7× | 6.9× | 1.9× | ✅ Works (portable) |
+| **x86_64 Intel** | 1.0× | 1.0× | 1.0× | ✅ Works (portable) |
+
+**Note**: biometal is optimized for Mac ARM (consumer hardware democratization). Other platforms are supported with correct, production-ready code but not specifically optimized. See [Cross-Platform Testing Results](results/cross_platform/FINDINGS.md) for details.
 
 ### I/O Optimization
 
@@ -192,13 +204,29 @@ See [OPTIMIZATION_RULES.md](OPTIMIZATION_RULES.md) for detailed evidence links.
 
 ## Platform Support
 
-| Platform | ARM NEON | Parallel Bgzip | Smart mmap | Network Streaming |
-|----------|----------|----------------|------------|-------------------|
-| **macOS** (Apple Silicon) | ✅ | ✅ | ✅ | ✅ |
-| **Linux ARM** (Graviton, Ampere) | ✅ | ✅ | ⏳ Pending | ✅ |
-| **Linux x86_64** | Scalar fallback | ✅ | ❌ | ✅ |
-| **Windows ARM** | ✅ | ✅ | ❌ | ✅ |
-| **Raspberry Pi** 4/5 | ✅ | ✅ | ❌ | ✅ |
+### Optimization Strategy
+
+biometal is **optimized for Mac ARM** (M1/M2/M3/M4) based on 1,357 experiments on Mac M3 Max. This aligns with our democratization mission: enable world-class bioinformatics on **affordable consumer hardware** ($1,000-2,000 MacBooks, not $50,000 servers).
+
+Other platforms are **supported with portable, correct code** but not specifically optimized:
+
+| Platform | Performance | Test Status | Strategy |
+|----------|-------------|-------------|----------|
+| **Mac ARM** (M1/M2/M3/M4) | **16-25× speedup** | ✅ 121/121 tests pass | **Optimized** (target platform) |
+| **AWS Graviton** | 6-10× speedup | ✅ 121/121 tests pass | Portable (works well) |
+| **Linux x86_64** | 1× (scalar) | ✅ 118/118 tests pass | Portable (fallback) |
+
+### Feature Support Matrix
+
+| Feature | macOS ARM | Linux ARM | Linux x86_64 |
+|---------|-----------|-----------|--------------|
+| ARM NEON SIMD | ✅ | ✅ | ❌ (scalar fallback) |
+| Parallel Bgzip | ✅ | ✅ | ✅ |
+| Smart mmap | ✅ | ⏳ | ❌ |
+| Network Streaming | ✅ | ✅ | ✅ |
+| Python Bindings | ✅ | ✅ | ✅ |
+
+**Validation**: Cross-platform testing completed Nov 2025 on AWS Graviton 3 and x86_64. All tests pass. See [results/cross_platform/FINDINGS.md](results/cross_platform/FINDINGS.md) for full details.
 
 ---
 
@@ -220,7 +248,7 @@ See [OPTIMIZATION_RULES.md](OPTIMIZATION_RULES.md) for detailed evidence links.
 - PyO3 wrappers for Python ecosystem
 - K-mer utilities (for BERT preprocessing)
 - Example notebooks
-- Cross-platform testing
+- Cross-platform testing ✅
 
 **v1.0** (Dec 16+, 2025): Production release
 - Extended operation coverage
