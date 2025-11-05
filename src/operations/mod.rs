@@ -4,18 +4,21 @@
 //! - Rule 1 (ARM NEON SIMD): 16-25× speedup on ARM platforms with scalar fallback
 //! - Sequence manipulation primitives: reverse complement, trimming, validation
 //! - Record-level operations: extract regions, reverse complement records
+//! - Trimming operations: fixed-position and quality-based trimming
 //!
 //! # Organization
 //!
 //! - `base_counting`, `gc_content`, `quality_filter`: NEON-optimized statistics
 //! - `sequence`: Core sequence transformations (reverse complement, etc.)
 //! - `record_ops`: Record-level operations (extract_region, etc.)
+//! - `trimming`: Fixed and quality-based trimming operations
 
 pub mod base_counting;
 pub mod gc_content;
 pub mod quality_filter;
 pub mod record_ops;
 pub mod sequence;
+pub mod trimming;
 
 pub use base_counting::count_bases;
 pub use gc_content::{gc_content, gc_content_scalar};
@@ -31,4 +34,10 @@ pub use sequence::{
 pub use record_ops::{
     extract_region, meets_length_requirement, reverse_complement_record,
     reverse_complement_record_inplace, sequence_length,
+};
+
+// Trimming operations
+pub use trimming::{
+    trim_both, trim_end, trim_quality_both, trim_quality_end, trim_quality_start,
+    trim_quality_window, trim_start,
 };
