@@ -23,7 +23,7 @@ use crate::python::records::{PyFastqRecord, PyFastaRecord};
 /// Note:
 ///     Memory footprint remains constant at ~5 MB even for TB-scale files.
 ///     This enables analysis on consumer hardware without downloading.
-#[pyclass(name = "FastqStream")]
+#[pyclass(name = "FastqStream", unsendable)]
 pub struct PyFastqStream {
     inner: Option<FastqStream<CompressedReader>>,
 }
@@ -89,7 +89,7 @@ impl PyFastqStream {
 ///
 /// Note:
 ///     Memory footprint remains constant at ~5 MB even for entire genomes.
-#[pyclass(name = "FastaStream")]
+#[pyclass(name = "FastaStream", unsendable)]
 pub struct PyFastaStream {
     inner: Option<FastaStream<CompressedReader>>,
 }
