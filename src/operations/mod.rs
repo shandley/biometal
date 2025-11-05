@@ -3,15 +3,18 @@
 //! This module provides:
 //! - Rule 1 (ARM NEON SIMD): 16-25× speedup on ARM platforms with scalar fallback
 //! - Sequence manipulation primitives: reverse complement, trimming, validation
+//! - Record-level operations: extract regions, reverse complement records
 //!
 //! # Organization
 //!
 //! - `base_counting`, `gc_content`, `quality_filter`: NEON-optimized statistics
 //! - `sequence`: Core sequence transformations (reverse complement, etc.)
+//! - `record_ops`: Record-level operations (extract_region, etc.)
 
 pub mod base_counting;
 pub mod gc_content;
 pub mod quality_filter;
+pub mod record_ops;
 pub mod sequence;
 
 pub use base_counting::count_bases;
@@ -22,4 +25,10 @@ pub use quality_filter::{mean_quality, mean_quality_scalar, passes_quality_filte
 pub use sequence::{
     complement, complement_inplace, count_invalid_bases, is_valid_dna, is_valid_rna, reverse,
     reverse_complement, reverse_complement_inplace, reverse_inplace,
+};
+
+// Record-level operations
+pub use record_ops::{
+    extract_region, meets_length_requirement, reverse_complement_record,
+    reverse_complement_record_inplace, sequence_length,
 };
