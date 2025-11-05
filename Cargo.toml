@@ -59,6 +59,10 @@ name = "operations"
 harness = false
 
 [[bench]]
+name = "sequence_operations"
+harness = false
+
+[[bench]]
 name = "network_streaming"
 harness = false
 required-features = ["network"]
