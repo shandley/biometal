@@ -1,9 +1,8 @@
 # biometal: Claude Development Guide
 
 **Project**: biometal - ARM-native bioinformatics library
-**Status**: v0.2.3 (Robustness Improvements)
-**Current Phase**: Week 5-6 - Python Bindings + Polish (Dec 2-13, 2025)
-**Timeline**: 6 weeks to v1.0.0 (Nov 4 - Dec 15, 2025)
+**Status**: v1.0.0 - Production Release (November 5, 2025)
+**Grade**: A+ (rust-code-quality-reviewer)
 
 ---
 
@@ -73,67 +72,14 @@ Platform priority: Mac → Linux ARM (Graviton) → x86_64 fallback
 
 ## Project Status
 
-### Completed
+**v1.0.0 Released** (November 5, 2025)
+- Production-ready ARM-native bioinformatics library
+- 121 tests passing (87 unit + 7 integration + 27 doc)
+- Python bindings (PyO3 0.27, Python 3.9-3.14)
+- Cross-platform validated (Mac ARM, AWS Graviton, x86_64)
+- Grade A+ (rust-code-quality-reviewer)
 
-**v0.1.0 (Week 1-2)**: Core Infrastructure + I/O
-- FASTQ/FASTA streaming parsers (constant memory)
-- ARM NEON operations (base_counting, gc_content, quality_filter)
-- Parallel bgzip + smart mmap (Rules 3-4)
-- Block-based processing (Rule 2)
-- All tests passing (104 tests)
-
-**v0.2.2 (Week 3-4)**: Network Streaming
-- HTTP/HTTPS streaming with range requests
-- Smart LRU caching (configurable size)
-- Background prefetching
-- SRA integration (toolkit wrapper recommended)
-- Network streaming benchmarks
-- Performance tuning documentation
-
-**v0.2.3 (Nov 4, 2025)**: Production-Grade Network Streaming
-- **Phase 1** (4 hours): Quick wins
-  - Bounded thread pool for prefetch (prevents resource exhaustion)
-  - Graceful cache poisoning recovery (better resilience)
-  - Cache size validation (1 MB - 10 GB bounds)
-- **Phase 2** (10 hours): Final polish
-  - Request deduplication (eliminates duplicate network fetches)
-  - Enhanced documentation (thread safety, patterns, troubleshooting)
-  - Comprehensive test coverage (cache pressure, LRU ordering, properties)
-- **Total**: 121 tests passing (87 unit + 7 integration + 27 doc)
-- **Grade**: A+ (rust-code-quality-reviewer)
-- **All 8 quality improvements completed** ✅
-
-### Current: Week 5-6 - Python Bindings + Polish
-
-**Goals** (Dec 2-13, 2025):
-- PyO3 wrappers for Python ecosystem
-- K-mer utilities (for ML preprocessing)
-- Example notebooks (Jupyter)
-- Cross-platform testing (Mac, Graviton, x86_64)
-- Code quality improvements (see docs/CODE_QUALITY_IMPROVEMENTS.md)
-
-**Key Deliverable**: biometal v1.0.0 (production FASTQ/FASTA library)
-
-### Code Quality Status
-
-From rust-code-quality-reviewer analysis:
-
-**All 8 improvements COMPLETED** ✅ (Grade: A+)
-
-1. ✅ SRA URL pattern fix (CRITICAL) - v0.2.2
-2. ✅ SRA format limitation docs (HIGH) - v0.2.2
-3. ✅ Bounded thread pool for prefetch (HIGH) - v0.2.3
-4. ✅ Graceful cache poisoning recovery (MEDIUM) - v0.2.3
-5. ✅ Cache size validation (LOW) - v0.2.3
-6. ✅ Request deduplication (MEDIUM) - v0.2.3
-7. ✅ Enhanced documentation (LOW) - v0.2.3
-8. ✅ Additional test coverage (LOW) - v0.2.3
-
-**Total Time**: ~14.5 hours
-**Test Growth**: 104 → 121 tests (+17)
-**Status**: Production-ready for v1.0.0
-
-See: `docs/CODE_QUALITY_IMPROVEMENTS.md` for implementation details
+See [CHANGELOG.md](CHANGELOG.md) for complete release history.
 
 ### Recent Experiments
 
@@ -558,19 +504,17 @@ See: `experiments/README.md` for full process
 - Rules: 6 optimization rules (OPTIMIZATION_RULES.md)
 
 ### Current Status
-- Version: v0.2.3 FINAL (production-grade network streaming)
-- Phase: Week 5-6 (Python bindings + polish)
-- Tests: 121 passing (87 unit + 7 integration + 27 doc)
-- Grade: A+ (rust-code-quality-reviewer, all 8 improvements complete)
-- Next Milestone: v1.0.0 (Dec 15, 2025)
+- **Version**: v1.0.0 (Released November 5, 2025)
+- **Tests**: 121 passing (87 unit + 7 integration + 27 doc)
+- **Grade**: A+ (rust-code-quality-reviewer)
+- **Python**: PyO3 0.27 (Python 3.9-3.14)
+- **Platforms**: Mac ARM (optimized), Graviton/x86_64 (portable)
 
 ### Platform Support
-1. Mac (M-series): Full acceleration (NEON + future Metal)
-2. Linux ARM (Graviton): NEON only (16-25x)
-3. x86_64: Scalar fallback (portable)
+1. **Mac ARM** (M1/M2/M3/M4): 16-25× NEON speedup (optimized)
+2. **Linux ARM** (Graviton): 6-10× NEON speedup (portable)
+3. **x86_64**: 1× scalar fallback (portable)
 
 ---
 
-**Last Updated**: November 5, 2025
-**Current Phase**: Week 5-6 (Python Bindings + Polish)
-**Next Action**: Code quality improvements OR Python bindings implementation
+**Last Updated**: November 5, 2025 (v1.0.0 Release)

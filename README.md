@@ -323,28 +323,19 @@ Other platforms are **supported with portable, correct code** but not specifical
 
 ## Roadmap
 
-**Week 1-2** (Nov 4-15, 2025): Core infrastructure + I/O optimization ✅
-- Streaming FASTQ/FASTA parser
-- ARM NEON operations
-- Parallel bgzip + smart mmap
-- Block-based processing (10K blocks)
+**v1.0.0** (Released November 5, 2025) ✅
+- Streaming FASTQ/FASTA parsers (constant memory)
+- ARM NEON operations (16-25× speedup)
+- Network streaming (HTTP/HTTPS, SRA)
+- Python bindings (PyO3 0.27, Python 3.9-3.14)
+- Cross-platform validation (Mac ARM, Graviton, x86_64)
+- Production-grade quality (121 tests, Grade A+)
 
-**Week 3-4** (Nov 18-29, 2025): Network streaming ✅
-- HTTP/HTTPS source with range requests ✅
-- Smart LRU caching (50 MB byte-bounded) ✅
-- Background prefetching (hides latency) ✅
-- SRA toolkit integration ✅
-
-**Week 5-6** (Dec 2-13, 2025): Python bindings + polish
-- PyO3 wrappers for Python ecosystem
-- K-mer utilities (for BERT preprocessing)
-- Example notebooks
-- Cross-platform testing ✅
-
-**v1.0** (Dec 16+, 2025): Production release
-- Extended operation coverage
-- Comprehensive documentation
-- Publish to crates.io
+**Future Considerations** (Community Driven)
+- Extended operation coverage (alignment, assembly)
+- Additional format support (BAM/SAM, VCF)
+- Publish to crates.io and PyPI
+- Metal GPU acceleration (Mac-specific)
 
 ---
 
