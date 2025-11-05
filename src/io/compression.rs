@@ -14,6 +14,8 @@
 use crate::error::{BiometalError, Result};
 use crate::io::DataSink;
 use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use memmap2::Mmap;
 use rayon::prelude::*;
 use std::fs::File;
@@ -715,7 +717,8 @@ impl BufRead for CompressedReader {
 /// # Memory Guarantees (Rule 5)
 ///
 /// - Write buffer: ~8 KB (BufWriter default)
-/// - Total: ~8 KB constant regardless of output size
+/// - Gzip compression: ~64 KB additional (compression buffer)
+/// - Total: ~72 KB constant regardless of output size
 ///
 /// # Example
 ///
@@ -734,10 +737,15 @@ impl BufRead for CompressedReader {
 /// ```
 pub enum CompressedWriter {
     /// Uncompressed writer with buffering
-    Plain(BufWriter<Box<dyn Write>>),
+    Plain(Option<BufWriter<Box<dyn Write>>>),
 
-    // Phase 1.2: Add compression variants
-    // Gzip(GzEncoder<BufWriter<Box<dyn Write>>>),
+    /// Gzip compressed writer (single-threaded)
+    ///
+    /// Uses flate2 with default compression level (6).
+    /// Compatible with all gzip tools.
+    Gzip(Option<GzEncoder<BufWriter<Box<dyn Write>>>>),
+
+    // Phase 3.3: Parallel bgzip compression
     // Bgzip(BgzipWriter),
 }
 
@@ -745,24 +753,55 @@ impl CompressedWriter {
     /// Create a new writer from a data sink
     ///
     /// Automatically detects compression format from file extension:
-    /// - `.gz` → gzip compression (Phase 1.2)
-    /// - `.bgz` → bgzip compression (Phase 1.2)
+    /// - `.gz` → gzip compression (single-threaded, compatible)
+    /// - `.bgz` → bgzip compression (Phase 3.3, parallel)
     /// - other → uncompressed
     ///
-    /// # Phase 1.1 Status
+    /// # Evidence (Category 1: Mirror)
     ///
-    /// Currently only supports uncompressed writing. Compression variants
-    /// will be added in Phase 1.2.
+    /// Compression mirrors decompression (Rule 3, Entry 029).
+    /// Expected speedup inherited from parallel decompression (6.5×).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use biometal::io::{DataSink, compression::CompressedWriter};
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// // Gzip compression (auto-detected from .gz extension)
+    /// let sink = DataSink::from_path("output.fq.gz");
+    /// let writer = CompressedWriter::new(sink)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(sink: DataSink) -> io::Result<Self> {
         match sink {
             DataSink::Local(path) => {
                 let file = File::create(&path)?;
 
-                // Phase 1.1: Only Plain variant implemented
-                // Phase 1.2: Will add compression detection
-                Self::new_plain(Box::new(file))
+                // Detect compression from file extension
+                let ext = path.extension()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("");
+
+                match ext {
+                    "gz" => {
+                        // Gzip compression (single-threaded, compatible)
+                        Self::new_gzip(Box::new(file))
+                    }
+                    "bgz" => {
+                        // Bgzip compression (Phase 3.3: parallel)
+                        // For now, fall back to gzip
+                        Self::new_gzip(Box::new(file))
+                    }
+                    _ => {
+                        // Uncompressed
+                        Self::new_plain(Box::new(file))
+                    }
+                }
             }
             DataSink::Stdout => {
+                // Stdout is always uncompressed (no extension to detect)
                 Self::new_plain(Box::new(io::stdout()))
             }
         }
@@ -770,13 +809,49 @@ impl CompressedWriter {
 
     /// Create a plain (uncompressed) writer
     pub fn new_plain(writer: Box<dyn Write>) -> io::Result<Self> {
-        Ok(Self::Plain(BufWriter::new(writer)))
+        Ok(Self::Plain(Some(BufWriter::new(writer))))
+    }
+
+    /// Create a gzip compressed writer
+    ///
+    /// Uses default compression level (6), which provides a good balance
+    /// between compression ratio and speed.
+    ///
+    /// # Evidence (Category 1: Mirror)
+    ///
+    /// Gzip compression mirrors decompression. No new validation needed
+    /// as this is the inverse of proven decompression operation.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use biometal::io::compression::CompressedWriter;
+    /// use std::fs::File;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let file = File::create("output.fq.gz")?;
+    /// let writer = CompressedWriter::new_gzip(Box::new(file))?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn new_gzip(writer: Box<dyn Write>) -> io::Result<Self> {
+        let encoder = GzEncoder::new(
+            BufWriter::new(writer),
+            Compression::default(), // Level 6
+        );
+        Ok(Self::Gzip(Some(encoder)))
     }
 
     /// Flush all buffered data to the underlying writer
+    ///
+    /// For compressed formats, this flushes the compression buffer
+    /// but does not finalize the stream. Use `finish()` to properly
+    /// close compressed files.
     pub fn flush(&mut self) -> io::Result<()> {
         match self {
-            Self::Plain(w) => w.flush(),
+            Self::Plain(Some(w)) => w.flush(),
+            Self::Gzip(Some(w)) => w.flush(),
+            _ => Ok(()), // Already finished
         }
     }
 
@@ -789,15 +864,52 @@ impl CompressedWriter {
     ///
     /// You should always call `finish()` explicitly rather than relying on `Drop`,
     /// as `finish()` can return errors that need to be handled.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use biometal::io::{DataSink, compression::CompressedWriter};
+    /// use std::io::Write;
+    ///
+    /// # fn main() -> std::io::Result<()> {
+    /// let sink = DataSink::from_path("output.fq.gz");
+    /// let mut writer = CompressedWriter::new(sink)?;
+    /// writer.write_all(b"data")?;
+    /// writer.finish()?;  // Finalizes gzip stream
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn finish(mut self) -> io::Result<()> {
-        self.flush()
+        match &mut self {
+            Self::Plain(w) => {
+                if let Some(mut writer) = w.take() {
+                    writer.flush()
+                } else {
+                    Ok(()) // Already finished
+                }
+            }
+            Self::Gzip(w) => {
+                if let Some(encoder) = w.take() {
+                    // finish() consumes the encoder and properly finalizes the gzip stream
+                    let _ = encoder.finish()?;
+                    Ok(())
+                } else {
+                    Ok(()) // Already finished
+                }
+            }
+        }
     }
 }
 
 impl Write for CompressedWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
-            Self::Plain(w) => w.write(buf),
+            Self::Plain(Some(w)) => w.write(buf),
+            Self::Gzip(Some(w)) => w.write(buf),
+            _ => Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Cannot write to finished writer",
+            )),
         }
     }
 
@@ -896,6 +1008,176 @@ mod tests {
         writer.flush().unwrap(); // Should not panic
         writer.write_all(b"More\n").unwrap();
         writer.finish().unwrap();
+    }
+
+    // ========================================================================
+    // Gzip Compression Tests (Phase 3.2)
+    // ========================================================================
+
+    #[test]
+    fn test_gzip_round_trip_basic() {
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        // Create a .gz file
+        let temp_file = NamedTempFile::with_suffix(".gz").unwrap();
+        let path = temp_file.path().to_path_buf();
+
+        let test_data = b"Hello, gzip compression!\nLine 2\nLine 3\n";
+
+        // Write with gzip compression
+        {
+            let sink = DataSink::from_path(&path);
+            let mut writer = CompressedWriter::new(sink).unwrap();
+            writer.write_all(test_data).unwrap();
+            writer.finish().unwrap();
+        }
+
+        // Verify file is actually compressed (should be smaller or similar for small data)
+        let compressed_size = fs::metadata(&path).unwrap().len();
+        println!("Original: {} bytes, Compressed: {} bytes", test_data.len(), compressed_size);
+
+        // Read back with CompressedReader
+        {
+            let source = DataSource::from_path(&path);
+            let mut reader = CompressedReader::new(source).unwrap();
+            let mut decompressed = Vec::new();
+            reader.read_to_end(&mut decompressed).unwrap();
+
+            assert_eq!(decompressed, test_data);
+        }
+    }
+
+    #[test]
+    fn test_gzip_round_trip_large() {
+        use std::fs;
+        use tempfile::NamedTempFile;
+
+        // Create a .gz file
+        let temp_file = NamedTempFile::with_suffix(".gz").unwrap();
+        let path = temp_file.path().to_path_buf();
+
+        // Generate large test data (100 KB of repeated pattern)
+        let pattern = b"ATGCATGCATGCATGC\n";
+        let mut test_data = Vec::new();
+        for _ in 0..6000 {
+            test_data.extend_from_slice(pattern);
+        }
+        let original_size = test_data.len();
+
+        // Write with gzip compression
+        {
+            let sink = DataSink::from_path(&path);
+            let mut writer = CompressedWriter::new(sink).unwrap();
+            writer.write_all(&test_data).unwrap();
+            writer.finish().unwrap();
+        }
+
+        // Verify compression achieved size reduction
+        let compressed_size = fs::metadata(&path).unwrap().len();
+        println!("Original: {} bytes, Compressed: {} bytes ({:.1}% reduction)",
+                 original_size, compressed_size,
+                 (1.0 - (compressed_size as f64 / original_size as f64)) * 100.0);
+
+        // Repeated pattern should compress very well
+        assert!(compressed_size < (original_size as u64) / 10,
+                "Expected >90% compression for repeated pattern");
+
+        // Read back and verify
+        {
+            let source = DataSource::from_path(&path);
+            let mut reader = CompressedReader::new(source).unwrap();
+            let mut decompressed = Vec::new();
+            reader.read_to_end(&mut decompressed).unwrap();
+
+            assert_eq!(decompressed.len(), test_data.len());
+            assert_eq!(decompressed, test_data);
+        }
+    }
+
+    #[test]
+    fn test_gzip_explicit_constructor() {
+        use tempfile::NamedTempFile;
+
+        let temp_file = NamedTempFile::with_suffix(".custom").unwrap();
+        let path = temp_file.path().to_path_buf();
+
+        let test_data = b"Testing explicit gzip constructor\n";
+
+        // Use explicit new_gzip() instead of auto-detection
+        {
+            let file = File::create(&path).unwrap();
+            let mut writer = CompressedWriter::new_gzip(Box::new(file)).unwrap();
+            writer.write_all(test_data).unwrap();
+            writer.finish().unwrap();
+        }
+
+        // Manually verify it's gzip format by checking magic bytes
+        {
+            let compressed = std::fs::read(&path).unwrap();
+            assert!(compressed.len() >= 2);
+            assert_eq!(compressed[0], 31); // gzip magic byte 1
+            assert_eq!(compressed[1], 139); // gzip magic byte 2
+        }
+
+        // Verify decompression works
+        {
+            use flate2::read::GzDecoder;
+            let file = File::open(&path).unwrap();
+            let mut decoder = GzDecoder::new(file);
+            let mut decompressed = Vec::new();
+            decoder.read_to_end(&mut decompressed).unwrap();
+            assert_eq!(decompressed, test_data);
+        }
+    }
+
+    #[test]
+    fn test_gzip_auto_detection_from_extension() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let test_data = b"Auto-detection test\n";
+
+        // .gz extension should trigger gzip
+        {
+            let path = temp_dir.path().join("test.fq.gz");
+            let sink = DataSink::from_path(&path);
+            let mut writer = CompressedWriter::new(sink).unwrap();
+            writer.write_all(test_data).unwrap();
+            writer.finish().unwrap();
+
+            // Verify it's compressed
+            let compressed = std::fs::read(&path).unwrap();
+            assert_eq!(compressed[0], 31);
+            assert_eq!(compressed[1], 139);
+        }
+
+        // .bgz extension should also trigger gzip (until Phase 3.3)
+        {
+            let path = temp_dir.path().join("test.fq.bgz");
+            let sink = DataSink::from_path(&path);
+            let mut writer = CompressedWriter::new(sink).unwrap();
+            writer.write_all(test_data).unwrap();
+            writer.finish().unwrap();
+
+            // Verify it's compressed
+            let compressed = std::fs::read(&path).unwrap();
+            assert_eq!(compressed[0], 31);
+            assert_eq!(compressed[1], 139);
+        }
+
+        // No extension or .fq should be uncompressed
+        {
+            let path = temp_dir.path().join("test.fq");
+            let sink = DataSink::from_path(&path);
+            let mut writer = CompressedWriter::new(sink).unwrap();
+            writer.write_all(test_data).unwrap();
+            writer.finish().unwrap();
+
+            // Verify it's NOT compressed (should be plain text)
+            let content = std::fs::read(&path).unwrap();
+            assert_eq!(content, test_data);
+        }
     }
 
     // ========================================================================
