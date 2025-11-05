@@ -377,8 +377,8 @@ impl<R: BufRead> BoundedParallelBgzipReader<R> {
 
     /// Read one bgzip block from stream
     fn read_one_block(&mut self) -> io::Result<Option<BgzipBlock>> {
-        // Read block header to determine block size
-        let mut header = [0u8; 18];
+        // Read block header (10 bytes standard gzip + 2 bytes XLEN)
+        let mut header = [0u8; 12];
         match self.inner.read_exact(&mut header) {
             Ok(_) => {}
             Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
@@ -455,7 +455,7 @@ impl<R: BufRead> BoundedParallelBgzipReader<R> {
         };
 
         // Calculate remaining bytes to read (block_size - header - extra)
-        let already_read = 18 + xlen;
+        let already_read = 12 + xlen;
         if block_size < already_read {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -1608,7 +1608,6 @@ mod tests {
     #[test]
     fn test_bgzip_parallel_blocks() {
         use tempfile::NamedTempFile;
-        use std::fs;
 
         let temp_file = NamedTempFile::with_suffix(".bgz").unwrap();
         let path = temp_file.path().to_path_buf();
@@ -1620,29 +1619,12 @@ mod tests {
             test_data.extend_from_slice(&block_data);
         }
 
-        println!("Writing {} blocks ({} bytes total)",
-                 PARALLEL_BLOCK_COUNT, test_data.len());
-
         // Write with bgzip
         {
             let sink = DataSink::from_path(&path);
             let mut writer = CompressedWriter::new(sink).unwrap();
             writer.write_all(&test_data).unwrap();
             writer.finish().unwrap();
-        }
-
-        // Inspect the compressed file
-        {
-            let compressed = fs::read(&path).unwrap();
-            println!("Compressed file size: {} bytes", compressed.len());
-            println!("First 50 bytes: {:?}", &compressed[..50.min(compressed.len())]);
-
-            // Try to parse blocks manually
-            let blocks = parse_bgzip_blocks(&compressed).unwrap();
-            println!("Parsed {} blocks from compressed file", blocks.len());
-            for (i, block) in blocks.iter().enumerate() {
-                println!("  Block {}: {} bytes compressed", i, block.size);
-            }
         }
 
         // Verify we can read it back
@@ -1652,12 +1634,9 @@ mod tests {
             let mut decompressed = Vec::new();
             reader.read_to_end(&mut decompressed).unwrap();
 
-            println!("Decompressed {} bytes (expected {})", decompressed.len(), test_data.len());
             assert_eq!(decompressed.len(), test_data.len());
             assert_eq!(decompressed, test_data);
         }
-
-        println!("Successfully round-tripped {} parallel blocks", PARALLEL_BLOCK_COUNT);
     }
 
     // ========================================================================
