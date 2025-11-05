@@ -58,10 +58,17 @@ biometal = "1.0"
 ### Python Installation
 
 ```bash
-# Option 1: Install from PyPI (when published)
+# Install from PyPI
 pip install biometal-rs
 
-# Option 2: Build from source (requires Rust toolchain)
+# Then import as 'biometal'
+python -c "import biometal; print(biometal.__version__)"
+```
+
+> **Note**: The package name is `biometal-rs` on PyPI (the `biometal` name was already taken), but you import it as `biometal` in your Python code. See [FAQ](#faq) for details.
+
+**Alternative - Build from source**:
+```bash
 pip install maturin
 git clone https://github.com/shandley/biometal
 cd biometal
@@ -508,6 +515,63 @@ for record in input {
 // Memory: constant ~5 MB
 // Speed: 16-25× faster on ARM
 ```
+
+---
+
+## FAQ
+
+### Why is the package called `biometal-rs` on PyPI but `biometal` everywhere else?
+
+The `biometal` name was already taken on PyPI when we published v1.0.0, so we used `biometal-rs` (following the Rust convention). However:
+
+- **GitHub repository**: `shandley/biometal`
+- **Python import**: `import biometal` (not `biometal_rs`)
+- **Rust crate**: `biometal`
+- **PyPI package**: `biometal-rs` (install name only)
+
+This means you install with:
+```bash
+pip install biometal-rs
+```
+
+But use it as:
+```python
+import biometal  # Not biometal_rs!
+```
+
+This is a common pattern for Rust-based Python packages and provides the best user experience (clean import name).
+
+### What platforms are supported?
+
+**Pre-built wheels available for**:
+- macOS ARM (M1/M2/M3/M4) - Optimized with NEON (16-25× speedup)
+- macOS x86_64 (Intel Macs) - Scalar fallback
+- Linux x86_64 - Scalar fallback
+
+**Coming soon**:
+- Linux ARM (Graviton, Raspberry Pi) - Will be added in v1.0.1
+
+**Build from source**: All other platforms can build from the source distribution (requires Rust toolchain).
+
+### Does it work on Windows?
+
+Currently untested. Building from source may work with the Rust toolchain installed, but we haven't validated it. Community contributions for Windows support are welcome!
+
+### Why ARM-native? What about x86_64?
+
+biometal is designed to democratize bioinformatics by enabling world-class performance on **consumer hardware**. Modern ARM laptops (like MacBooks with M-series chips) cost $1,400 vs $50,000+ for traditional HPC servers.
+
+**Performance philosophy**:
+- **Mac ARM** (M1/M2/M3/M4): Optimized target - 16-25× NEON speedup
+- **Other platforms**: Correct, production-ready code with scalar fallback
+
+The library works great on x86_64 (all tests pass), it's just not specifically optimized for it. Our mission is enabling field researchers, students, and small labs in LMICs to do cutting-edge work on affordable hardware.
+
+### How do I get support?
+
+- **Bug reports**: [GitHub Issues](https://github.com/shandley/biometal/issues)
+- **Questions**: [GitHub Discussions](https://github.com/shandley/biometal/discussions)
+- **Documentation**: [https://docs.rs/biometal](https://docs.rs/biometal)
 
 ---
 
