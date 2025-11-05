@@ -48,14 +48,35 @@ Most bioinformatics tools require you to download entire datasets before analysi
 
 ## Quick Start
 
-### Installation
+### Rust Installation
 
 ```toml
 [dependencies]
 biometal = "0.1"
 ```
 
-### Basic Usage
+### Python Installation
+
+```bash
+# Option 1: Install from PyPI (when published)
+pip install biometal
+
+# Option 2: Build from source (requires Rust toolchain)
+pip install maturin
+git clone https://github.com/shandley/biometal
+cd biometal
+maturin develop --release --features python
+```
+
+**Requirements**:
+- Python 3.9+ (tested on 3.14)
+- Rust toolchain (for building from source)
+
+---
+
+## Usage
+
+### Rust: Basic Usage
 
 ```rust
 use biometal::FastqStream;
@@ -113,6 +134,76 @@ let counts = operations::base_counting(&sequence)?;
 let gc = operations::gc_content(&sequence)?;
 
 // 16-25× faster on ARM, automatic scalar fallback on x86_64
+```
+
+### Python: Basic Usage
+
+```python
+import biometal
+
+# Stream FASTQ from local file (constant memory)
+stream = biometal.FastqStream.from_path("large_dataset.fq.gz")
+
+for record in stream:
+    # Process one record at a time
+    # Memory stays constant at ~5 MB
+    gc = biometal.gc_content(record.sequence)
+    print(f"{record.id}: GC={gc:.2%}")
+```
+
+### Python: ARM NEON Operations
+
+```python
+import biometal
+
+# ARM NEON automatically enabled on ARM platforms
+# 16-25× faster on Mac ARM, automatic scalar fallback on x86_64
+
+# GC content calculation
+sequence = b"ATGCATGC"
+gc = biometal.gc_content(sequence)  # 20.3× speedup on ARM
+
+# Base counting
+counts = biometal.count_bases(sequence)  # 16.7× speedup on ARM
+print(f"A:{counts['A']}, C:{counts['C']}, G:{counts['G']}, T:{counts['T']}")
+
+# Quality scoring
+quality = record.quality
+mean_q = biometal.mean_quality(quality)  # 25.1× speedup on ARM
+
+# K-mer extraction (for ML preprocessing)
+kmers = biometal.extract_kmers(sequence, k=6)
+print(f"6-mers: {kmers}")
+```
+
+### Python: Example Workflow
+
+```python
+import biometal
+
+# Analyze FASTQ file with streaming (constant memory)
+stream = biometal.FastqStream.from_path("data.fq.gz")
+
+total_bases = 0
+total_gc = 0.0
+high_quality = 0
+
+for record in stream:
+    # Count bases (ARM NEON accelerated)
+    counts = biometal.count_bases(record.sequence)
+    total_bases += sum(counts.values())
+
+    # Calculate GC content (ARM NEON accelerated)
+    gc = biometal.gc_content(record.sequence)
+    total_gc += gc
+
+    # Check quality (ARM NEON accelerated)
+    if biometal.mean_quality(record.quality) > 30.0:
+        high_quality += 1
+
+print(f"Total bases: {total_bases}")
+print(f"Average GC: {total_gc/len(stream):.2%}")
+print(f"High quality reads: {high_quality}")
 ```
 
 ---

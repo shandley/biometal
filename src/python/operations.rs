@@ -47,7 +47,7 @@ pub fn py_gc_content(sequence: &[u8]) -> PyResult<f64> {
 ///     - ARM (NEON): ~5,254 Kseq/s (16.7x speedup)
 ///     - x86_64 (scalar): ~315 Kseq/s
 #[pyfunction(name = "count_bases")]
-pub fn py_count_bases(py: Python, sequence: &[u8]) -> PyResult<PyObject> {
+pub fn py_count_bases(py: Python, sequence: &[u8]) -> PyResult<Py<pyo3::PyAny>> {
     let counts = operations::count_bases(sequence);
 
     let dict = pyo3::types::PyDict::new(py);
