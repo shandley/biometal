@@ -17,10 +17,13 @@ use crate::types::{FastqRecord, FastaRecord};
 #[pyclass(name = "FastqRecord")]
 #[derive(Clone)]
 pub struct PyFastqRecord {
+    /// Read identifier (e.g., "@SRR390728.1")
     #[pyo3(get)]
     pub id: String,
+    /// DNA/RNA sequence as bytes
     #[pyo3(get)]
     pub sequence: Vec<u8>,
+    /// Phred quality scores as bytes (ASCII-encoded)
     #[pyo3(get)]
     pub quality: Vec<u8>,
 }
@@ -80,8 +83,10 @@ impl From<FastqRecord> for PyFastqRecord {
 #[pyclass(name = "FastaRecord")]
 #[derive(Clone)]
 pub struct PyFastaRecord {
+    /// Sequence identifier (e.g., ">chr1")
     #[pyo3(get)]
     pub id: String,
+    /// DNA/RNA/protein sequence as bytes
     #[pyo3(get)]
     pub sequence: Vec<u8>,
 }

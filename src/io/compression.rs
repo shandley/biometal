@@ -95,7 +95,7 @@ impl DataSource {
             #[cfg(feature = "network")]
             DataSource::Http(url) => {
                 use crate::io::network::HttpReader;
-                let reader = HttpReader::new(&url)?;
+                let reader = HttpReader::new(url)?;
                 Ok(Box::new(std::io::BufReader::new(reader)))
             }
 

@@ -996,7 +996,7 @@ impl Read for HttpReader {
         let data = self
             .client
             .fetch_range(&self.url, self.position, end)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(io::Error::other)?;
 
         // Handle empty response (indicates EOF even if total_size unknown)
         if data.is_empty() {
