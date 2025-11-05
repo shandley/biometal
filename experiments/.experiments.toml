@@ -5,14 +5,21 @@
 
 [[experiment]]
 name = "sra-decoder"
-status = "research"
-hypothesis = "ARM NEON-optimized SRA decoder can achieve 20-40× speedup vs SRA toolkit"
+status = "completed"
+hypothesis = "ARM NEON-optimized SRA decoder can achieve ≥10× speedup vs scalar"
 start_date = "2025-11-05"
+end_date = "2025-11-05"
 owner = "Scott Handley"
-timeline = "2 weeks research, 4-6 weeks implementation if validated"
-success_criteria = "≥10× speedup with NEON vs scalar, constant memory, streaming architecture"
-decision_date = "TBD"  # After Week 2 research phase
-outcome = "pending"
+timeline = "2 days (terminated early)"
+success_criteria = "≥10× speedup with NEON vs scalar, constant memory (~5 MB), streaming architecture"
+decision_date = "2025-11-05"  # Day 2 - Early termination based on evidence
+outcome = "no-go"
+reason = "VDB format complexity (5,000-10,000 LOC), projected 2-3× speedup (fails ≥10× threshold), undocumented & unstable format"
+final_speedup = "2-3× (projected)"  # Based on hot path analysis (schema/index 60-70%, base unpacking 5-10%)
+alternative_pursued = "SRA Toolkit wrapper (500-1,000 LOC, NCBI maintains format complexity)"
+learnings = "Time-boxed experiments catch dead-ends early. VDB is database system, not binary format. Container complexity unavoidable."
+publication = "Planned: Technical blog post 'Evidence-Based Abandonment: Why Custom SRA Decoders Are Impractical'"
+files = "PROPOSAL.md, RESEARCH_LOG.md, FINDINGS.md (complete documentation)"
 
 # Future experiments will be added here as they're proposed
 # Format:
