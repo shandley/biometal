@@ -47,6 +47,10 @@ pub enum BiometalError {
     #[error("Paired-end files have different lengths")]
     PairedEndLengthMismatch,
 
+    /// Invalid range or region
+    #[error("Invalid range: {0}")]
+    InvalidRange(String),
+
     /// Network error (Rule 6)
     #[cfg(feature = "network")]
     #[error("Network error: {0}")]
