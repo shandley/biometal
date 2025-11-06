@@ -74,10 +74,11 @@ Platform priority: Mac → Linux ARM (Graviton) → x86_64 fallback
 
 **v1.0.0 Released** (November 5, 2025)
 - Production-ready ARM-native bioinformatics library
-- 121 tests passing (87 unit + 7 integration + 27 doc)
+- **Phase 4 Complete** (November 6, 2025): Sequence manipulation primitives
+- 279 tests passing (209 unit/integration + 70 doc)
 - Python bindings (PyO3 0.27, Python 3.9-3.14)
 - Cross-platform validated (Mac ARM, AWS Graviton, x86_64)
-- Grade A+ (rust-code-quality-reviewer)
+- Grade A (rust-code-quality-reviewer, post-Phase 4 refactoring)
 
 See [CHANGELOG.md](CHANGELOG.md) for complete release history.
 
@@ -107,10 +108,14 @@ biometal/
 │   │   ├── compression.rs  # Parallel bgzip + mmap (DONE)
 │   │   ├── network.rs      # HTTP streaming (DONE)
 │   │   └── sra.rs          # SRA (toolkit wrapper recommended)
-│   ├── operations/         # NEON-optimized operations (Rule 1)
-│   │   ├── base_counting.rs    # DONE
-│   │   ├── gc_content.rs       # DONE
-│   │   └── quality_filter.rs   # DONE
+│   ├── operations/         # Operations (Rule 1 NEON + Phase 4 primitives)
+│   │   ├── base_counting.rs    # DONE (Rule 1: NEON)
+│   │   ├── gc_content.rs       # DONE (Rule 1: NEON)
+│   │   ├── quality_filter.rs   # DONE (Rule 1: NEON)
+│   │   ├── sequence.rs         # DONE (Phase 4: reverse_complement, complement, reverse)
+│   │   ├── record_ops.rs       # DONE (Phase 4: extract_region, length filtering)
+│   │   ├── trimming.rs         # DONE (Phase 4: quality/fixed trimming)
+│   │   └── masking.rs          # DONE (Phase 4: quality-based masking)
 │   ├── optimization/       # Platform detection
 │   │   ├── platform.rs     # DONE
 │   │   └── thresholds.rs   # DONE
@@ -505,8 +510,9 @@ See: `experiments/README.md` for full process
 
 ### Current Status
 - **Version**: v1.0.0 (Released November 5, 2025)
-- **Tests**: 121 passing (87 unit + 7 integration + 27 doc)
-- **Grade**: A+ (rust-code-quality-reviewer)
+- **Phase 4**: Sequence manipulation primitives (Complete November 6, 2025)
+- **Tests**: 279 passing (209 unit/integration + 70 doc)
+- **Grade**: A (rust-code-quality-reviewer, post-Phase 4)
 - **Python**: PyO3 0.27 (Python 3.9-3.14)
 - **Platforms**: Mac ARM (optimized), Graviton/x86_64 (portable)
 
@@ -530,9 +536,10 @@ When starting a new Claude session:
 
 ### Quick Context
 1. **Project**: biometal v1.0.0 - ARM-native bioinformatics library
-2. **Status**: Production release, published to PyPI and crates.io
-3. **Grade**: A+ (rust-code-quality-reviewer)
-4. **Philosophy**: Evidence-based optimization (1,357 experiments, 40,710 measurements)
+2. **Status**: Production release + Phase 4 sequence primitives (Nov 6, 2025)
+3. **Tests**: 279 passing (209 unit/integration + 70 doc)
+4. **Grade**: A (rust-code-quality-reviewer, post-Phase 4)
+5. **Philosophy**: Evidence-based optimization (1,357 experiments, 40,710 measurements)
 
 ### Key Files to Reference
 - `CLAUDE.md` (this file) - Development guidelines
@@ -541,19 +548,25 @@ When starting a new Claude session:
 - `README.md` - User documentation
 - `DOCUMENTATION_REVIEW.md` - Post-publication documentation audit
 
-### Current Work (v1.0.0 Complete)
+### Current Work (v1.0.0 + Phase 4 Complete)
 - ✅ Core library (FASTQ/FASTA streaming, NEON ops)
 - ✅ Python bindings (PyO3 0.27)
 - ✅ Network streaming (HTTP, SRA)
 - ✅ Cross-platform testing (Mac ARM, Graviton, x86_64)
 - ✅ Published to PyPI (biometal-rs)
 - ✅ Published to crates.io (biometal)
-- ✅ Documentation updated post-publication
+- ✅ Phase 4: Sequence manipulation primitives (Nov 6, 2025)
+  - reverse_complement, complement, reverse (sequence.rs)
+  - extract_region, length filtering (record_ops.rs)
+  - quality/fixed trimming (trimming.rs)
+  - quality-based masking (masking.rs)
+  - 279 tests passing (+158 from Phase 4)
 
 ### Known State
 - **Package naming**: `biometal-rs` on PyPI, `biometal` on crates.io/GitHub
 - **Linux ARM wheels**: Temporarily disabled for v1.0.0 (cross-compilation complexity)
-- **Next focus**: Community feedback, bug fixes, potential v1.0.1 for Linux ARM
+- **Phase 4 NEON**: Deferred (evidence-based decision, <2× estimated vs ≥5× threshold)
+- **Next focus**: Python bindings for Phase 4 ops, v1.1.0 release, community feedback
 
 ### Important Patterns
 - Always follow evidence-based design (reference OPTIMIZATION_RULES.md)
@@ -563,4 +576,4 @@ When starting a new Claude session:
 
 ---
 
-**Last Updated**: November 5, 2025 (Post v1.0.0 Publication)
+**Last Updated**: November 6, 2025 (Post Phase 4 Completion)

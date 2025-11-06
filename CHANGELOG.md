@@ -5,6 +5,104 @@ All notable changes to biometal will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added - Phase 4: Sequence Manipulation Primitives
+
+**Grade**: A (rust-code-quality-reviewer, post-refactoring)
+**Tests**: 279 passing (209 unit/integration + 70 doc)
+**Date**: November 6, 2025
+
+#### Core Sequence Operations (src/operations/sequence.rs)
+- **Reverse complement**: DNA/RNA sequence transformation
+- **Complement**: Base complementation with lookup table
+- **Reverse**: Sequence reversal
+- **In-place variants**: Zero-allocation transformations
+- **Validation**: `is_valid_dna()`, `is_valid_rna()`, `count_invalid_bases()`
+- **IUPAC support**: Full support for ambiguous codes (N, R, Y, S, W, K, M, B, D, H, V)
+
+#### Record-Level Operations (src/operations/record_ops.rs)
+- **Extract region**: Subsequence extraction with quality preservation
+- **Reverse complement record**: RC with quality reversal
+- **Length filtering**: `meets_length_requirement()` with min/max bounds
+- **Sequence length**: `sequence_length()` helper
+
+#### Trimming Operations (src/operations/trimming.rs)
+- **Fixed-position**: `trim_start()`, `trim_end()`, `trim_both()`
+- **Quality-based**: `trim_quality_end()`, `trim_quality_start()`, `trim_quality_both()`
+- **Sliding window**: `trim_quality_window()` (Trimmomatic-style)
+- **Phred+33 encoding**: Illumina 1.8+ standard
+
+#### Masking Operations (src/operations/masking.rs)
+- **Quality-based masking**: Replace low-quality bases with 'N'
+- **Length preservation**: Unlike trimming, maintains read length
+- **In-place + copy variants**: `mask_low_quality()`, `mask_low_quality_copy()`
+- **Counting**: `count_masked_bases()` for QC metrics
+
+#### API Improvements
+- **FastqRecord::is_empty()**: Check for empty records after trimming
+- **Empty record documentation**: Clear guidance on handling empty results
+- **Validation helper**: DRY principle for sequence-quality alignment checks
+
+#### Performance (Scalar Implementation)
+Benchmarked on Mac M3 Max, evidence-based NEON deferral decision:
+- reverse_complement: 3.7 GiB/s @ 150bp (Illumina standard)
+- complement: 3.8 GiB/s @ 150bp
+- reverse: 11.1 GiB/s @ 150bp (3× faster, proves table lookup is bottleneck)
+- trim_quality_both: Optimized to single-pass (eliminated intermediate allocation)
+
+**NEON Decision**: Deferred (evidence-based)
+- Current scalar performance: 3-5 GiB/s (excellent)
+- Operations are memory-bound (table lookup bottleneck)
+- Estimated NEON speedup: <2× (fails ≥5× threshold)
+- Better investment: Additional features, user documentation
+
+#### Testing
+- **Unit tests**: 209 passing (up from 121)
+- **Property-based tests**: 32 tests with proptest
+  - Involutive properties (RC(RC(x)) = x, C(C(x)) = x, R(R(x)) = x)
+  - Decomposition (RC(x) = R(C(x)) = C(R(x)))
+  - In-place ≡ allocating variants
+  - Length preservation
+  - Quality threshold validation
+  - Window trimming edge cases
+- **Doc tests**: 70 passing (comprehensive usage examples)
+
+#### Documentation
+- **Module-level docs**: Design principles, evidence citations, RNA limitations
+- **Function-level docs**: Every public API with examples
+- **Examples**: `examples/sequence_operations.rs` (279 LOC, 5 demo sections)
+- **Benchmarks**: `benches/sequence_operations.rs` (249 LOC, 9 benchmark groups)
+- **Analysis**: `PHASE4_BENCHMARK_ANALYSIS.md` (comprehensive NEON decision rationale)
+
+#### Code Quality Improvements
+Addressed all rust-code-quality-reviewer recommendations:
+1. ✅ Optimized `trim_quality_both` (single-pass, no intermediate allocation)
+2. ✅ Added `FastqRecord::is_empty()` helper method
+3. ✅ Documented empty record handling in all trimming functions
+4. ✅ Enhanced RNA documentation (module-level warning + function notes)
+5. ✅ Added window trimming edge case property test
+6. ✅ Refactored validation logic (DRY principle, 8 instances → 2 helpers)
+
+### Changed
+
+- **Test count**: 121 → 279 tests (158 new tests, +130% increase)
+- **Memory efficiency**: `trim_quality_both` now single-pass
+
+### Performance Analysis
+
+**Evidence-Based Decision** (Category 2: Benchmark First):
+- Scalar baseline measured: 3.7 GiB/s @ 150bp
+- Throughput sufficient: 24.9M reads/second (100M reads in 4 seconds)
+- Memory-bound workload: Table lookups cannot parallelize effectively
+- NEON threshold not met: Estimated <2× speedup (need ≥5×)
+- Documentation: Full analysis in PHASE4_BENCHMARK_ANALYSIS.md
+
+**Comparison to Rule 1 Operations**:
+- Base counting: 16.7× NEON speedup (element-wise comparison)
+- GC content: 20.3× NEON speedup (element-wise comparison)
+- Reverse complement: <2× estimated (table lookup anti-pattern)
+
 ## [1.0.0] - 2025-11-05
 
 ### 🎉 First Stable Release
