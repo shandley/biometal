@@ -46,7 +46,11 @@ fn biometal(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Register k-mer utilities
     m.add_function(wrap_pyfunction!(py_extract_kmers, m)?)?;
-    m.add_function(wrap_pyfunction!(py_extract_kmers_non_overlapping, m)?)?;
+    m.add_function(wrap_pyfunction!(py_extract_minimizers, m)?)?;
+    m.add_function(wrap_pyfunction!(py_kmer_spectrum, m)?)?;
+
+    // Register k-mer extractor class
+    m.add_class::<PyKmerExtractor>()?;
 
     // Module metadata
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;

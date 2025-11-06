@@ -215,6 +215,70 @@ print(f"Average GC: {total_gc/len(stream):.2%}")
 print(f"High quality reads: {high_quality}")
 ```
 
+### K-mer Operations (Evidence-Based)
+
+biometal provides k-mer operations optimized based on ASBB Entry 034 findings.
+
+**Key finding**: K-mer operations are **data-structure-bound** (hash+HashMap), not compute-bound. Unlike element-wise operations (base counting, GC content), k-mers spend 50-60% of runtime on hash computation and 30-40% on data structure operations. Therefore, NEON/GPU provide no benefit.
+
+#### Rust: K-mer Operations
+
+```rust
+use biometal::operations::kmer::{extract_kmers, extract_minimizers, kmer_spectrum, KmerExtractor};
+
+// 1. Simple k-mer extraction (scalar-only, optimal)
+let sequence = b"ATGCATGCATGC";
+let kmers = extract_kmers(sequence, 6);  // Returns Vec<Vec<u8>>
+
+// 2. Minimizers (minimap2-style, scalar-only)
+let minimizers = extract_minimizers(sequence, 6, 10);  // k=6, w=10
+for minimizer in minimizers {
+    println!("Position {}: {:?}", minimizer.position, minimizer.kmer);
+}
+
+// 3. K-mer spectrum (frequency counting, scalar-only)
+let sequences = vec![b"ATGCAT".as_ref(), b"GCATGC".as_ref()];
+let spectrum = kmer_spectrum(&sequences, 3);  // HashMap<Vec<u8>, usize>
+
+// 4. Parallel extraction (opt-in for large datasets, 2.2× speedup)
+let extractor = KmerExtractor::with_parallel(4);  // 4 threads (optimal per Entry 034)
+let large_dataset: Vec<&[u8]> = /* 10K+ sequences */;
+let kmers = extractor.extract(&large_dataset, 6);  // 2.2× faster
+```
+
+#### Python: K-mer Operations
+
+```python
+import biometal
+
+# 1. Simple k-mer extraction (scalar-only, optimal)
+sequence = b"ATGCATGCATGC"
+kmers = biometal.extract_kmers(sequence, k=6)  # Returns list[bytes]
+print(f"Extracted {len(kmers)} k-mers")
+
+# 2. Minimizers (minimap2-style, scalar-only)
+minimizers = biometal.extract_minimizers(sequence, k=6, w=10)
+for m in minimizers:
+    print(f"Position {m['position']}: {m['kmer']}")
+
+# 3. K-mer spectrum (frequency counting, scalar-only)
+sequences = [b"ATGCAT", b"GCATGC"]
+spectrum = biometal.kmer_spectrum(sequences, k=3)  # Returns dict
+print(f"Unique k-mers: {len(spectrum)}")
+
+# 4. Parallel extraction (opt-in for large datasets, 2.2× speedup)
+extractor = biometal.KmerExtractor(parallel=True, threads=4)
+large_dataset = [...]  # 10K+ sequences
+kmers = extractor.extract(large_dataset, k=6)  # 2.2× faster
+```
+
+**Evidence (Entry 034)**:
+- **Minimizers**: 1.02-1.26× (NEON/Parallel) → Scalar-only
+- **K-mer Spectrum**: 0.95-1.88× (sometimes SLOWER with parallel!) → Scalar-only
+- **K-mer Extraction**: 2.19-2.38× (Parallel-4t) → Opt-in parallel
+
+This validates minimap2's scalar design and identifies a 2.2× optimization opportunity for DNABert preprocessing.
+
 ---
 
 ## Performance
@@ -480,22 +544,49 @@ println!("High quality: {}/{} ({:.1}%)",
     high_quality, total, 100.0 * high_quality as f64 / total as f64);
 ```
 
-### 2. BERT Preprocessing Pipeline
+### 2. BERT Preprocessing Pipeline (DNABert/ML)
 
 ```rust
-use biometal::{FastqStream, kmer};
+use biometal::{FastqStream, operations::kmer};
+use biometal::io::DataSource;
 
 // Stream from SRA (no local copy!)
-let stream = FastqStream::from_sra("SRR12345678")?;
+let source = DataSource::Sra("SRR12345678".to_string());
+let stream = FastqStream::new(source)?;
 
 // Extract k-mers for DNABert training
 for record in stream {
     let record = record?;
-    let kmers = kmer::extract_overlapping(&record.sequence, 6)?;
-    
-    // Feed to BERT training pipeline
-    // Constant memory even for TB-scale datasets
+
+    // Extract overlapping k-mers (Entry 034: scalar-only optimal)
+    let kmers = kmer::extract_kmers(&record.sequence, 6);
+
+    // Feed to BERT training pipeline immediately
+    // Constant memory even for TB-scale datasets (~5 MB)
 }
+```
+
+**Python equivalent**:
+```python
+import biometal
+
+stream = biometal.FastqStream.from_path("dataset.fq.gz")
+
+for record in stream:
+    # Extract k-mers for DNABert (k=3, 4, 5, or 6 typical)
+    kmers = biometal.extract_kmers(record.sequence, k=6)
+
+    # Feed to model - constant memory!
+    model.process(kmers)
+```
+
+**For large batches** (10K+ sequences), use parallel extraction:
+```python
+# Opt-in parallel for 2.2× speedup (Entry 034)
+extractor = biometal.KmerExtractor(parallel=True, threads=4)
+
+sequences = [record.sequence for record in batch]
+kmers = extractor.extract(sequences, k=6)  # 2.2× faster
 ```
 
 ### 3. Metagenomics Filtering

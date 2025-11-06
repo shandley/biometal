@@ -6,17 +6,24 @@
 //! - Record-level operations: extract regions, reverse complement records
 //! - Trimming operations: fixed-position and quality-based trimming
 //! - Masking operations: replace low-quality bases with 'N'
+//! - Complexity analysis: Shannon entropy for sequence complexity scoring
+//! - Format conversion: FASTQ to FASTA conversion
+//! - K-mer operations: extraction, minimizers, spectrum (Rule 7: scalar-only)
 //!
 //! # Organization
 //!
 //! - `base_counting`, `gc_content`, `quality_filter`: NEON-optimized statistics
+//! - `complexity`: Sequence complexity scoring (Shannon entropy)
 //! - `sequence`: Core sequence transformations (reverse complement, etc.)
-//! - `record_ops`: Record-level operations (extract_region, etc.)
+//! - `record_ops`: Record-level operations (extract_region, format conversion, etc.)
 //! - `trimming`: Fixed and quality-based trimming operations
 //! - `masking`: Quality-based masking operations
+//! - `kmer`: K-mer operations (scalar-only, data-structure-bound)
 
 pub mod base_counting;
+pub mod complexity;
 pub mod gc_content;
+pub mod kmer;
 pub mod masking;
 pub mod quality_filter;
 pub mod record_ops;
@@ -24,6 +31,7 @@ pub mod sequence;
 pub mod trimming;
 
 pub use base_counting::count_bases;
+pub use complexity::{complexity_score, complexity_score_scalar};
 pub use gc_content::{gc_content, gc_content_scalar};
 pub use quality_filter::{mean_quality, mean_quality_scalar, passes_quality_filter};
 
@@ -36,7 +44,7 @@ pub use sequence::{
 // Record-level operations
 pub use record_ops::{
     extract_region, meets_length_requirement, reverse_complement_record,
-    reverse_complement_record_inplace, sequence_length,
+    reverse_complement_record_inplace, sequence_length, to_fasta_record,
 };
 
 // Trimming operations
@@ -47,3 +55,8 @@ pub use trimming::{
 
 // Masking operations
 pub use masking::{count_masked_bases, mask_low_quality, mask_low_quality_copy};
+
+// K-mer operations (Rule 7: scalar-only, data-structure-bound)
+pub use kmer::{
+    extract_kmers, extract_minimizers, kmer_iter, kmer_spectrum, KmerExtractor, Minimizer,
+};

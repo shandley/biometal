@@ -286,6 +286,79 @@ pub fn meets_length_requirement(record: &FastqRecord, min: usize, max: usize) ->
     len >= min && len <= max
 }
 
+/// Convert FASTQ record to FASTA record (drop quality scores)
+///
+/// Creates a new FASTA record with the same ID and sequence, discarding
+/// quality scores. This is useful for tools that don't require quality
+/// information or for format conversion pipelines.
+///
+/// # Arguments
+///
+/// * `record` - Source FASTQ record
+///
+/// # Returns
+///
+/// New `FastaRecord` with ID and sequence (quality scores dropped)
+///
+/// # Performance
+///
+/// - Time: O(n) where n = sequence length (copies sequence)
+/// - Space: O(n) for new record allocation
+/// - Evidence: Trivial conversion, no optimization needed
+///
+/// # Examples
+///
+/// ```
+/// use biometal::FastqRecord;
+/// use biometal::operations::to_fasta_record;
+///
+/// let fastq = FastqRecord::new(
+///     "read1".to_string(),
+///     b"ATGCATGC".to_vec(),
+///     b"IIIIIIII".to_vec(), // Quality scores
+/// );
+///
+/// let fasta = to_fasta_record(&fastq);
+/// assert_eq!(fasta.id, "read1");
+/// assert_eq!(fasta.sequence, b"ATGCATGC");
+/// // Quality scores are dropped
+/// ```
+///
+/// # Common Use Cases
+///
+/// **Format conversion for downstream tools**:
+/// ```
+/// use biometal::FastqRecord;
+/// use biometal::operations::to_fasta_record;
+///
+/// // Convert single record
+/// let fastq = FastqRecord::new(
+///     "read1".to_string(),
+///     b"ATGCATGC".to_vec(),
+///     b"IIIIIIII".to_vec(),
+/// );
+///
+/// let fasta = to_fasta_record(&fastq);
+/// assert_eq!(fasta.id, "read1");
+/// assert_eq!(fasta.sequence, b"ATGCATGC");
+/// ```
+///
+/// **Streaming conversion** (when FastaWriter is available):
+/// ```rust,ignore
+/// // Future: Convert FASTQ to FASTA (streaming, constant memory)
+/// let input = FastqStream::from_path("input.fq.gz")?;
+/// let mut output = FastaWriter::new("output.fa")?;
+///
+/// for record in input {
+///     let fastq = record?;
+///     let fasta = to_fasta_record(&fastq);
+///     output.write(&fasta)?;
+/// }
+/// ```
+pub fn to_fasta_record(record: &FastqRecord) -> crate::types::FastaRecord {
+    crate::types::FastaRecord::new(record.id.clone(), record.sequence.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -506,6 +579,63 @@ mod tests {
         assert!(meets_length_requirement(&empty, 0, 0));
         assert!(meets_length_requirement(&empty, 0, 10));
         assert!(!meets_length_requirement(&empty, 1, 10));
+    }
+
+    // ===== FASTQ to FASTA Conversion Tests =====
+
+    #[test]
+    fn test_to_fasta_record_basic() {
+        let fastq = FastqRecord::new(
+            "read1".to_string(),
+            b"ATGCATGC".to_vec(),
+            b"IIIIIIII".to_vec(),
+        );
+
+        let fasta = to_fasta_record(&fastq);
+        assert_eq!(fasta.id, "read1");
+        assert_eq!(fasta.sequence, b"ATGCATGC");
+    }
+
+    #[test]
+    fn test_to_fasta_record_empty() {
+        let fastq = FastqRecord::new(
+            "empty".to_string(),
+            b"".to_vec(),
+            b"".to_vec(),
+        );
+
+        let fasta = to_fasta_record(&fastq);
+        assert_eq!(fasta.id, "empty");
+        assert_eq!(fasta.sequence, b"");
+    }
+
+    #[test]
+    fn test_to_fasta_record_with_special_chars() {
+        let fastq = FastqRecord::new(
+            "read1|sample=001|barcode=ATGC".to_string(),
+            b"ATGCNNNATGC".to_vec(),
+            b"IIII!!!IIII".to_vec(),
+        );
+
+        let fasta = to_fasta_record(&fastq);
+        assert_eq!(fasta.id, "read1|sample=001|barcode=ATGC");
+        assert_eq!(fasta.sequence, b"ATGCNNNATGC");
+    }
+
+    #[test]
+    fn test_to_fasta_record_long_sequence() {
+        let long_seq = b"ATGC".repeat(100);
+        let long_qual = b"IIII".repeat(100);
+
+        let fastq = FastqRecord::new(
+            "long_read".to_string(),
+            long_seq.clone(),
+            long_qual,
+        );
+
+        let fasta = to_fasta_record(&fastq);
+        assert_eq!(fasta.id, "long_read");
+        assert_eq!(fasta.sequence, long_seq);
     }
 
     // ===== Property-Based Tests =====
