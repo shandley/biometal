@@ -71,6 +71,10 @@ required-features = ["network"]
 name = "minimizer_baseline"
 harness = false
 
+[[bench]]
+name = "minimizer_fast"
+harness = false
+
 [profile.release]
 lto = true
 codegen-units = 1
