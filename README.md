@@ -215,6 +215,17 @@ print(f"Average GC: {total_gc/len(stream):.2%}")
 print(f"High quality reads: {high_quality}")
 ```
 
+### 📓 Interactive Tutorials
+
+**Learn biometal with Jupyter notebooks** - real workflows, hands-on examples:
+
+- **[Getting Started](notebooks/01_getting_started.ipynb)** - Streaming, GC content, quality analysis (15 min)
+- **Quality Control Pipeline** - Complete QC workflows (coming soon)
+- **K-mer Analysis** - ML preprocessing for DNABert (coming soon)
+- **SRA Streaming** - Analyze without downloading (coming soon)
+
+👉 **[Browse all tutorials →](notebooks/README.md)**
+
 ### K-mer Operations (Evidence-Based)
 
 biometal provides k-mer operations optimized based on ASBB Entry 034 findings.
