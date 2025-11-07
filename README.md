@@ -54,7 +54,7 @@ Most bioinformatics tools require you to download entire datasets before analysi
 
 ```toml
 [dependencies]
-biometal = "1.0"
+biometal = "1.2"
 ```
 
 ### Python Installation
@@ -565,11 +565,28 @@ Other platforms are **supported with portable, correct code** but not specifical
 - Python bindings (PyO3 0.27, Python 3.9-3.14)
 - Cross-platform validation (Mac ARM, Graviton, x86_64)
 - Production-grade quality (121 tests, Grade A+)
+- Published to crates.io and PyPI
+
+**v1.1.0** (Released November 6, 2025) ✅
+- K-mer operations (extraction, minimizers, spectrum)
+- Shannon entropy complexity scoring
+- Parallel k-mer extraction (opt-in, 2.2× speedup)
+- Python bindings for k-mer operations
+- Evidence-based design (Entry 034)
+- 260 tests, Grade A+
+
+**v1.2.0** (Released November 6, 2025) ✅
+- Python bindings for Phase 4 sequence operations (20 functions)
+- Complete QC pipelines (trim → filter → mask)
+- Trimmomatic-compatible sliding window trimming
+- Quality-based masking for variant calling
+- 347 tests (260 library + 87 doc), Grade A
 
 **Future Considerations** (Community Driven)
+- Python examples & tutorials (Jupyter notebooks)
+- Performance benchmarking vs existing tools
 - Extended operation coverage (alignment, assembly)
 - Additional format support (BAM/SAM, VCF)
-- Publish to crates.io and PyPI
 - Metal GPU acceleration (Mac-specific)
 
 ---
@@ -878,9 +895,10 @@ For the experimental methodology, see:
 
 ---
 
-**Status**: v1.0.0 - Production Release 🎉
-**Released**: November 5, 2025
-**Grade**: A+ (rust-code-quality-reviewer)
-**Tests**: 121 passing (87 unit + 7 integration + 27 doc)
+**Status**: v1.2.0 - Python Phase 4 Bindings 🎉
+**Released**: November 6, 2025
+**Grade**: A (rust-code-quality-reviewer compatible)
+**Tests**: 347 passing (260 library + 87 doc)
+**Python Functions**: 40+ (core ops + k-mers + Phase 4)
 **Evidence Base**: 1,357 experiments, 40,710 measurements
 **Mission**: Democratizing bioinformatics compute

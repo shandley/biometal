@@ -1,8 +1,8 @@
 # biometal: Claude Development Guide
 
 **Project**: biometal - ARM-native bioinformatics library
-**Status**: v1.0.0 - Production Release (November 5, 2025)
-**Grade**: A+ (rust-code-quality-reviewer)
+**Status**: v1.2.0 - Python Phase 4 Bindings (November 6, 2025)
+**Grade**: A (rust-code-quality-reviewer compatible)
 
 ---
 
@@ -72,13 +72,19 @@ Platform priority: Mac → Linux ARM (Graviton) → x86_64 fallback
 
 ## Project Status
 
-**v1.0.0 Released** (November 5, 2025)
+**v1.2.0 Released** (November 6, 2025)
 - Production-ready ARM-native bioinformatics library
-- **Phase 4 Complete** (November 6, 2025): Sequence manipulation primitives
-- 279 tests passing (209 unit/integration + 70 doc)
+- **Complete Python API**: 40+ functions (core ops + k-mers + Phase 4)
+- **Phase 4 Python Bindings**: 20 new functions (sequence, record, trimming, masking)
+- 347 tests passing (260 library + 87 doc)
 - Python bindings (PyO3 0.27, Python 3.9-3.14)
 - Cross-platform validated (Mac ARM, AWS Graviton, x86_64)
-- Grade A (rust-code-quality-reviewer, post-Phase 4 refactoring)
+- Grade A (rust-code-quality-reviewer compatible)
+
+### Recent Releases
+- **v1.0.0** (Nov 5, 2025): Core library - FASTQ/FASTA streaming, NEON ops, network streaming
+- **v1.1.0** (Nov 6, 2025): K-mer operations & complexity scoring (Entry 034 evidence)
+- **v1.2.0** (Nov 6, 2025): Python bindings for Phase 4 sequence operations
 
 See [CHANGELOG.md](CHANGELOG.md) for complete release history.
 
@@ -118,6 +124,16 @@ biometal/
 │   │   ├── masking.rs          # DONE (Phase 4: quality-based masking)
 │   │   ├── kmer.rs             # DONE (v1.1.0: k-mer operations, Entry 034)
 │   │   └── complexity.rs       # DONE (v1.1.0: Shannon entropy scoring)
+│   ├── python/             # Python bindings (PyO3 0.27)
+│   │   ├── mod.rs          # Module registration (40+ functions)
+│   │   ├── records.rs      # PyFastqRecord, PyFastaRecord
+│   │   ├── streams.rs      # PyFastqStream, PyFastaStream
+│   │   ├── operations.rs   # Core operations (GC, base counting)
+│   │   ├── kmers.rs        # K-mer operations (v1.1.0)
+│   │   ├── sequence.rs     # Sequence ops (v1.2.0: 6 functions)
+│   │   ├── record_ops.rs   # Record manipulation (v1.2.0: 5 functions)
+│   │   ├── trimming.rs     # Trimming operations (v1.2.0: 7 functions)
+│   │   └── masking.rs      # Masking operations (v1.2.0: 2 functions)
 │   ├── optimization/       # Platform detection
 │   │   ├── platform.rs     # DONE
 │   │   └── thresholds.rs   # DONE
@@ -537,10 +553,10 @@ See: `experiments/README.md` for full process
 When starting a new Claude session:
 
 ### Quick Context
-1. **Project**: biometal v1.0.0 - ARM-native bioinformatics library
-2. **Status**: Production release + Phase 4 sequence primitives (Nov 6, 2025)
-3. **Tests**: 279 passing (209 unit/integration + 70 doc)
-4. **Grade**: A (rust-code-quality-reviewer, post-Phase 4)
+1. **Project**: biometal v1.2.0 - ARM-native bioinformatics library
+2. **Status**: v1.2.0 released (Nov 6, 2025) - Python Phase 4 bindings
+3. **Tests**: 347 passing (260 library + 87 doc)
+4. **Grade**: A (rust-code-quality-reviewer compatible)
 5. **Philosophy**: Evidence-based optimization (1,357 experiments, 40,710 measurements)
 
 ### Key Files to Reference
@@ -550,32 +566,46 @@ When starting a new Claude session:
 - `README.md` - User documentation
 - `DOCUMENTATION_REVIEW.md` - Post-publication documentation audit
 
-### Current Work (v1.1.0 - K-mer Operations & Complexity)
-- ✅ Core library (FASTQ/FASTA streaming, NEON ops)
-- ✅ Python bindings (PyO3 0.27)
-- ✅ Network streaming (HTTP, SRA)
-- ✅ Cross-platform testing (Mac ARM, Graviton, x86_64)
-- ✅ Published to PyPI (biometal-rs v1.0.0)
-- ✅ Published to crates.io (biometal v1.0.0)
-- ✅ Phase 4: Sequence manipulation primitives (v1.0.0, Nov 6, 2025)
-  - reverse_complement, complement, reverse (sequence.rs)
-  - extract_region, length filtering (record_ops.rs)
-  - quality/fixed trimming (trimming.rs)
-  - quality-based masking (masking.rs)
-  - 279 tests (209 unit/integration + 70 doc)
-- ✅ K-mer Operations & Complexity (v1.1.0, Nov 6, 2025)
-  - k-mer extraction, minimizers, spectrum (kmer.rs - Entry 034)
-  - Shannon entropy complexity scoring (complexity.rs)
+### Recent Releases (Detailed)
+- ✅ **v1.0.0** (Nov 5, 2025): Core library
+  - FASTQ/FASTA streaming (constant memory)
+  - ARM NEON operations (16-25× speedup)
+  - Network streaming (HTTP, SRA)
+  - Cross-platform validated (Mac ARM, Graviton, x86_64)
+  - Published to PyPI (biometal-rs) and crates.io (biometal)
+  - Grade A+ (rust-code-quality-reviewer)
+
+- ✅ **v1.1.0** (Nov 6, 2025): K-mer Operations & Complexity
+  - K-mer extraction, minimizers, spectrum (Entry 034 evidence)
+  - Shannon entropy complexity scoring
   - Python bindings for k-mer operations
+  - Parallel extraction (opt-in, 2.2× speedup)
   - 260 tests (254 unit/integration + 6 property-based)
   - Grade A+ (rust-code-quality-reviewer)
 
+- ✅ **v1.2.0** (Nov 6, 2025): Python Phase 4 Bindings
+  - 20 new Python functions (sequence, record, trimming, masking)
+  - Complete QC pipeline support (trim → filter → mask)
+  - Trimmomatic-compatible sliding window trimming
+  - Quality-based masking for variant calling pipelines
+  - 347 tests (260 library + 87 doc)
+  - Grade A (rust-code-quality-reviewer compatible)
+
 ### Known State
 - **Package naming**: `biometal-rs` on PyPI, `biometal` on crates.io/GitHub
-- **Linux ARM wheels**: Temporarily disabled for v1.0.0 (cross-compilation complexity)
+- **Latest version**: v1.2.0 (both platforms)
+- **Python API**: 40+ functions (core ops + k-mers + Phase 4)
+- **Test coverage**: 347 tests (260 library + 87 doc)
+- **Linux ARM wheels**: Temporarily disabled (cross-compilation complexity)
 - **Phase 4 NEON**: Deferred (evidence-based decision, <2× estimated vs ≥5× threshold)
 - **K-mer NEON**: Scalar-only (Entry 034: data-structure-bound, NEON provides no benefit)
-- **Next focus**: v1.1.0 release, Python bindings for Phase 4 ops, community feedback
+
+### Next Priorities (TBD)
+- Community feedback on v1.2.0 Python bindings
+- Python examples & tutorials (Jupyter notebooks)
+- Performance benchmarking vs existing tools (cutadapt, Trimmomatic)
+- BAM/SAM format support (evidence-based evaluation needed)
+- Extended operation coverage (alignment, assembly)
 
 ### Important Patterns
 - Always follow evidence-based design (reference OPTIMIZATION_RULES.md)
@@ -585,4 +615,4 @@ When starting a new Claude session:
 
 ---
 
-**Last Updated**: November 6, 2025 (v1.1.0 - K-mer Operations & Complexity)
+**Last Updated**: November 6, 2025 (Post v1.2.0 Release)
