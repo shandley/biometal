@@ -19,12 +19,14 @@
 //! - `trimming`: Fixed and quality-based trimming operations
 //! - `masking`: Quality-based masking operations
 //! - `kmer`: K-mer operations (scalar-only, data-structure-bound)
+//! - `nthash`: ntHash rolling hash for genomic sequences (v1.3.0+)
 
 pub mod base_counting;
 pub mod complexity;
 pub mod gc_content;
 pub mod kmer;
 pub mod masking;
+pub mod nthash;
 pub mod quality_filter;
 pub mod record_ops;
 pub mod sequence;

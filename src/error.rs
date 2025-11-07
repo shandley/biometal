@@ -51,6 +51,13 @@ pub enum BiometalError {
     #[error("Invalid range: {0}")]
     InvalidRange(String),
 
+    /// Invalid input parameter or value
+    #[error("Invalid input: {msg}")]
+    InvalidInput {
+        /// Error message
+        msg: String,
+    },
+
     /// Network error (Rule 6)
     #[cfg(feature = "network")]
     #[error("Network error: {0}")]
