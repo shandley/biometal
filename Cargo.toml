@@ -1,6 +1,6 @@
 [package]
 name = "biometal"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 authors = ["Scott Handley <handley.scott@gmail.com>"]
 description = "ARM-native bioinformatics library with streaming architecture and evidence-based optimization"

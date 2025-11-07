@@ -7,9 +7,152 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added - Phase 4: Sequence Manipulation Primitives
+## [1.1.0] - 2025-11-06
 
-**Grade**: A (rust-code-quality-reviewer, post-refactoring)
+### 🧬 K-mer Operations & Complexity Scoring Release
+
+Production-ready k-mer operations and sequence complexity analysis with comprehensive benchmarking and property-based testing.
+
+**Grade**: A+ (rust-code-quality-reviewer, post-refactoring)
+**Tests**: 260 passing (254 unit/integration + 6 property-based)
+**Evidence Base**: ASBB Entry 034 (k-mer operations), Entry 020-025 (base counting NEON)
+
+### Added
+
+#### K-mer Operations (src/operations/kmer.rs) - Entry 034
+**Evidence-Based Design**: K-mer operations are data-structure-bound (hash+HashMap), not compute-bound.
+
+- **Simple extraction**: `extract_kmers(sequence, k)` - Overlapping k-mer extraction
+- **Streaming iterator**: `kmer_iter(sequence, k)` - Zero-copy, constant memory
+- **Minimizers**: `extract_minimizers(sequence, k, w)` - minimap2-style sketching
+- **Spectrum counting**: `kmer_spectrum(sequences, k)` - Frequency analysis
+- **Parallel extraction**: `KmerExtractor::with_parallel(threads)` - Opt-in 2.2× speedup
+
+**Performance** (Entry 034 findings):
+- **Minimizers**: 1.02-1.26× (NEON/Parallel) → Scalar-only optimal
+- **Spectrum**: 0.95-1.88× (sometimes SLOWER with parallel!) → Scalar-only
+- **Extraction**: 2.19-2.38× (Parallel-4t for ≥1000 sequences) → Opt-in parallel
+
+**API Design**:
+- Conservative defaults (scalar, simple)
+- Opt-in parallelism via `KmerExtractor::with_parallel(4)`
+- `PARALLEL_THRESHOLD` constant (1000 sequences) publicly exposed
+- `will_use_parallel()` method for behavior transparency
+- Thread count automatically capped at 4 (empirically optimal)
+
+**Python Bindings** (src/python/kmers.rs):
+- `extract_kmers(sequence, k)` - Returns list of k-mers
+- `extract_minimizers(sequence, k, w)` - Returns list of minimizer dicts
+- `kmer_spectrum(sequences, k)` - Returns frequency dict
+- `KmerExtractor(parallel=False, threads=4)` - Configurable extractor class
+
+**Use Cases**:
+- BERT/DNABert preprocessing (k=3-6)
+- minimap2-style indexing (minimizers)
+- De Bruijn graph assembly (k-mer spectrum)
+- K-mer frequency analysis
+
+#### Complexity Scoring (src/operations/complexity.rs)
+- **Shannon entropy**: `complexity_score(sequence)` - Returns 0.0-1.0
+- **NEON-optimized**: Reuses `count_bases()` (16.7× speedup)
+- **Scalar fallback**: `complexity_score_scalar()` for testing
+
+**Performance**:
+- Inherits NEON speedup from base_counting (16.7×)
+- Optimized entropy calculation (single-pass)
+
+**Use Cases**:
+- Metagenomics QC (filter low-complexity regions)
+- Read quality assessment
+- Homopolymer detection
+
+#### Record Operations Extensions (src/operations/record_ops.rs)
+- **FASTA conversion**: `to_fasta_record(fastq_record)` - Drop quality scores
+
+### Code Quality Improvements
+
+Addressed **all** rust-code-quality-reviewer recommendations (8 issues):
+
+**HIGH Priority** (1):
+- ✅ Removed unused `HashMap` import in Python bindings
+
+**MEDIUM Priority** (4):
+- ✅ Fixed `unwrap()` in documentation example (use `if let` pattern)
+- ✅ Exposed `PARALLEL_THRESHOLD` as public constant
+- ✅ Added `will_use_parallel()` method for API transparency
+- ✅ Added 6 property-based tests validating k-mer invariants
+
+**LOW Priority** (3):
+- ✅ Improved thread pool error handling (fallback to scalar on failure)
+- ✅ Removed unused `complexity_score_neon()` function
+- ✅ Added comprehensive k-mer benchmarks (`benches/kmer_operations.rs`)
+
+### Testing
+
+**Property-Based Tests** (6 new tests using proptest):
+- `prop_kmer_count`: Validates k-mer count formula `len(kmers) == max(0, len(seq) - k + 1)`
+- `prop_iter_matches_extract`: Iterator and extract produce identical results
+- `prop_spectrum_sum`: Spectrum frequencies sum to total k-mer count
+- `prop_minimizer_uniqueness`: Consecutive minimizers have different positions
+- `prop_parallel_matches_scalar`: Parallel extraction correctness
+- `prop_edge_cases_no_panic`: Robustness testing for all inputs
+
+**Benchmarks**:
+- `benches/kmer_operations.rs` (182 LOC, 6 benchmark groups)
+  - K-mer extraction across k values (3, 6, 9, 12)
+  - Sequence sizes (100 bp - 100K bp)
+  - Minimizer extraction (validates scalar optimal)
+  - Spectrum counting (validates parallel makes it slower)
+  - Parallel vs scalar comparison (validates 2.2× speedup)
+  - Operations comparison at 150bp (Illumina standard)
+
+### Documentation
+
+**Examples**:
+- `examples/kmer_operations_full.rs` (150 LOC)
+  - Demonstrates all 5 k-mer operations
+  - Shows streaming integration
+  - Includes Entry 034 evidence summary
+
+**README Updates**:
+- Added "K-mer Operations (Evidence-Based)" section
+- Updated BERT preprocessing pipeline example
+- Documented Python k-mer API with usage examples
+
+**Module Documentation**:
+- Comprehensive evidence-based design rationale
+- Links to ASBB Entry 034 (GitHub)
+- Performance breakdown (hash 50-60%, HashMap 30-40%, validation 5-10%)
+- Clear explanation why NEON doesn't help
+
+### Changed
+
+- **Test count**: 254 → 260 tests (+6 property-based tests)
+- **Benchmark count**: +6 new benchmark groups for k-mer operations
+- **API transparency**: `PARALLEL_THRESHOLD` and `will_use_parallel()` expose behavior
+
+### Evidence Validation
+
+**Entry 034 Findings Confirmed**:
+- K-mer operations are data-structure-bound (not compute-bound)
+- Hash computation dominates runtime (50-60%, sequential)
+- HashMap operations add overhead (30-40%, thread contention)
+- Base validation is only 5-10% (NEON-friendly, but minimal impact)
+- **Conclusion**: Scalar-only optimal for most operations
+
+**Validates Existing Tools**:
+- minimap2's scalar minimizer design (empirically confirmed)
+- Identifies 2.2× speedup opportunity for DNABert k-mer extraction
+
+---
+
+## [1.0.0] - 2025-11-05 (Phase 4: Sequence Manipulation Primitives)
+
+### 🎉 First Stable Release
+
+Production-ready ARM-native bioinformatics library with streaming architecture and evidence-based optimization.
+
+**Grade**: A (rust-code-quality-reviewer, post-Phase 4)
 **Tests**: 279 passing (209 unit/integration + 70 doc)
 **Date**: November 6, 2025
 

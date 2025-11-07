@@ -113,9 +113,11 @@ biometal/
 │   │   ├── gc_content.rs       # DONE (Rule 1: NEON)
 │   │   ├── quality_filter.rs   # DONE (Rule 1: NEON)
 │   │   ├── sequence.rs         # DONE (Phase 4: reverse_complement, complement, reverse)
-│   │   ├── record_ops.rs       # DONE (Phase 4: extract_region, length filtering)
+│   │   ├── record_ops.rs       # DONE (Phase 4: extract_region, length filtering, to_fasta_record)
 │   │   ├── trimming.rs         # DONE (Phase 4: quality/fixed trimming)
-│   │   └── masking.rs          # DONE (Phase 4: quality-based masking)
+│   │   ├── masking.rs          # DONE (Phase 4: quality-based masking)
+│   │   ├── kmer.rs             # DONE (v1.1.0: k-mer operations, Entry 034)
+│   │   └── complexity.rs       # DONE (v1.1.0: Shannon entropy scoring)
 │   ├── optimization/       # Platform detection
 │   │   ├── platform.rs     # DONE
 │   │   └── thresholds.rs   # DONE
@@ -548,25 +550,32 @@ When starting a new Claude session:
 - `README.md` - User documentation
 - `DOCUMENTATION_REVIEW.md` - Post-publication documentation audit
 
-### Current Work (v1.0.0 + Phase 4 Complete)
+### Current Work (v1.1.0 - K-mer Operations & Complexity)
 - ✅ Core library (FASTQ/FASTA streaming, NEON ops)
 - ✅ Python bindings (PyO3 0.27)
 - ✅ Network streaming (HTTP, SRA)
 - ✅ Cross-platform testing (Mac ARM, Graviton, x86_64)
-- ✅ Published to PyPI (biometal-rs)
-- ✅ Published to crates.io (biometal)
-- ✅ Phase 4: Sequence manipulation primitives (Nov 6, 2025)
+- ✅ Published to PyPI (biometal-rs v1.0.0)
+- ✅ Published to crates.io (biometal v1.0.0)
+- ✅ Phase 4: Sequence manipulation primitives (v1.0.0, Nov 6, 2025)
   - reverse_complement, complement, reverse (sequence.rs)
   - extract_region, length filtering (record_ops.rs)
   - quality/fixed trimming (trimming.rs)
   - quality-based masking (masking.rs)
-  - 279 tests passing (+158 from Phase 4)
+  - 279 tests (209 unit/integration + 70 doc)
+- ✅ K-mer Operations & Complexity (v1.1.0, Nov 6, 2025)
+  - k-mer extraction, minimizers, spectrum (kmer.rs - Entry 034)
+  - Shannon entropy complexity scoring (complexity.rs)
+  - Python bindings for k-mer operations
+  - 260 tests (254 unit/integration + 6 property-based)
+  - Grade A+ (rust-code-quality-reviewer)
 
 ### Known State
 - **Package naming**: `biometal-rs` on PyPI, `biometal` on crates.io/GitHub
 - **Linux ARM wheels**: Temporarily disabled for v1.0.0 (cross-compilation complexity)
 - **Phase 4 NEON**: Deferred (evidence-based decision, <2× estimated vs ≥5× threshold)
-- **Next focus**: Python bindings for Phase 4 ops, v1.1.0 release, community feedback
+- **K-mer NEON**: Scalar-only (Entry 034: data-structure-bound, NEON provides no benefit)
+- **Next focus**: v1.1.0 release, Python bindings for Phase 4 ops, community feedback
 
 ### Important Patterns
 - Always follow evidence-based design (reference OPTIMIZATION_RULES.md)
@@ -576,4 +585,4 @@ When starting a new Claude session:
 
 ---
 
-**Last Updated**: November 6, 2025 (Post Phase 4 Completion)
+**Last Updated**: November 6, 2025 (v1.1.0 - K-mer Operations & Complexity)
