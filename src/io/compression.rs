@@ -737,7 +737,7 @@ const BGZIP_BLOCK_SIZE: usize = 60 * 1024; // 60 KB
 /// - Uncompressed buffer: 8 × 60 KB = 480 KB
 /// - Compressed buffer: 8 × ~60 KB = 480 KB
 /// - Total: ~1 MB bounded, regardless of output size
-struct BgzipWriter {
+pub(crate) struct BgzipWriter {
     /// Underlying writer for compressed output
     writer: Box<dyn Write>,
 
@@ -951,6 +951,7 @@ impl BgzipWriter {
 /// # Ok(())
 /// # }
 /// ```
+#[allow(private_interfaces)]
 pub enum CompressedWriter {
     /// Uncompressed writer with buffering
     Plain(Option<BufWriter<Box<dyn Write>>>),
