@@ -75,11 +75,12 @@ Platform priority: Mac ARM → Linux ARM (Graviton) → x86_64 fallback
 - Python bindings (PyO3 0.27, 40+ functions)
 - 347 tests passing (260 library + 87 doc)
 
-### In Progress
-- **BAM/SAM Parser**: Native implementation in experiments/native-bam-implementation/
-  - Phase 1-3 complete (record parsing, error types, robustness)
-  - Currently evaluating for production integration
-  - See: experiments/native-bam-implementation/NOODLES_LESSONS.md
+### Recently Integrated
+- **BAM/SAM Parser** (src/io/bam/) - November 8, 2025
+  - Phases 1-3 complete and integrated into main codebase
+  - 4,333 lines, 70 tests passing
+  - Production-ready: header parsing, record parsing, CIGAR, sequences, tags
+  - Future work: Parallel BGZF decompression (experiments/native-bam-implementation/)
 
 ### Distribution
 - **PyPI**: biometal-rs (pip install biometal-rs)
@@ -96,7 +97,15 @@ biometal/
 │   ├── io/                 # Streaming parsers
 │   │   ├── fastq.rs        # FASTQ streaming
 │   │   ├── fasta.rs        # FASTA streaming
-│   │   ├── bam/            # BAM/SAM (in development)
+│   │   ├── bam/            # BAM/SAM parser (Nov 8, 2025)
+│   │   │   ├── reader.rs   # BamReader streaming interface
+│   │   │   ├── record.rs   # Record parsing with robustness
+│   │   │   ├── header.rs   # Header and reference parsing
+│   │   │   ├── cigar.rs    # CIGAR operations
+│   │   │   ├── sequence.rs # 4-bit sequence decoding
+│   │   │   ├── tags.rs     # Auxiliary tag parsing
+│   │   │   ├── error.rs    # Structured error types
+│   │   │   └── sam_writer.rs # SAM format output
 │   │   ├── compression.rs  # Parallel bgzip + mmap
 │   │   ├── network.rs      # HTTP streaming
 │   │   ├── paired.rs       # Paired-end reads
