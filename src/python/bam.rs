@@ -14,8 +14,51 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::PyStopIteration;
 use std::path::PathBuf;
-use crate::io::bam::{BamReader, Header};
+use std::collections::HashMap;
+use crate::io::bam::{BamReader, Header, Reference};
 use crate::io::compression::CompressedReader;
+
+/// Reference sequence information
+///
+/// Attributes:
+///     name (str): Reference name (e.g., "chr1", "chrM")
+///     length (int): Reference sequence length in bases
+///
+/// Example:
+///     >>> header = bam.header
+///     >>> ref = header.reference(0)
+///     >>> print(f"{ref.name}: {ref.length} bp")
+#[pyclass(name = "Reference")]
+#[derive(Clone)]
+pub struct PyReference {
+    /// Reference sequence name
+    #[pyo3(get)]
+    pub name: String,
+
+    /// Reference sequence length in bases
+    #[pyo3(get)]
+    pub length: u32,
+}
+
+#[pymethods]
+impl PyReference {
+    fn __repr__(&self) -> String {
+        format!("Reference(name='{}', length={})", self.name, self.length)
+    }
+
+    fn __str__(&self) -> String {
+        format!("{}: {} bp", self.name, self.length)
+    }
+}
+
+impl From<&Reference> for PyReference {
+    fn from(reference: &Reference) -> Self {
+        PyReference {
+            name: reference.name.clone(),
+            length: reference.length,
+        }
+    }
+}
 
 /// BAM record with alignment information
 ///
@@ -30,11 +73,28 @@ use crate::io::compression::CompressedReader;
 ///     template_length (int): Template length
 ///     sequence (bytes): Read sequence
 ///     quality (bytes): Phred quality scores
+///     sequence_length (int): Length of sequence
+///
+/// Properties (computed from flags):
+///     is_mapped (bool): Read is mapped
+///     is_reverse (bool): Read is reverse strand
+///     is_forward (bool): Read is forward strand
+///     is_paired (bool): Read is paired-end
+///     is_proper_pair (bool): Read and mate properly paired
+///     is_first (bool): Read is first in pair
+///     is_second (bool): Read is second in pair
+///     is_primary (bool): Primary alignment (not secondary/supplementary)
+///     is_secondary (bool): Secondary alignment
+///     is_supplementary (bool): Supplementary alignment
+///     is_mate_mapped (bool): Mate is mapped
+///     is_mate_reverse (bool): Mate is reverse strand
+///     is_qc_fail (bool): Failed quality checks
+///     is_duplicate (bool): PCR or optical duplicate
 ///
 /// Example:
 ///     >>> bam = biometal.BamReader.from_path("alignments.bam")
 ///     >>> for record in bam:
-///     ...     if record.mapq and record.mapq >= 30:
+///     ...     if record.is_mapped and record.is_primary and record.mapq and record.mapq >= 30:
 ///     ...         print(f"{record.name}: chr{record.reference_id}:{record.position}")
 ///
 /// Note:
@@ -119,6 +179,64 @@ impl PyBamRecord {
     #[getter]
     fn is_primary(&self) -> bool {
         (self.flags & 0x900) == 0  // Not secondary, not supplementary
+    }
+
+    /// Check if read is properly paired
+    ///
+    /// Both reads mapped in proper pair orientation and distance.
+    #[getter]
+    fn is_proper_pair(&self) -> bool {
+        (self.flags & 0x2) != 0
+    }
+
+    /// Check if read is forward strand
+    ///
+    /// Opposite of is_reverse.
+    #[getter]
+    fn is_forward(&self) -> bool {
+        (self.flags & 0x10) == 0
+    }
+
+    /// Check if mate is mapped
+    #[getter]
+    fn is_mate_mapped(&self) -> bool {
+        (self.flags & 0x8) == 0
+    }
+
+    /// Check if mate is reverse strand
+    #[getter]
+    fn is_mate_reverse(&self) -> bool {
+        (self.flags & 0x20) != 0
+    }
+
+    /// Check if read is secondary alignment
+    #[getter]
+    fn is_secondary(&self) -> bool {
+        (self.flags & 0x100) != 0
+    }
+
+    /// Check if read is supplementary alignment
+    #[getter]
+    fn is_supplementary(&self) -> bool {
+        (self.flags & 0x800) != 0
+    }
+
+    /// Check if read failed quality checks
+    #[getter]
+    fn is_qc_fail(&self) -> bool {
+        (self.flags & 0x200) != 0
+    }
+
+    /// Check if read is PCR or optical duplicate
+    #[getter]
+    fn is_duplicate(&self) -> bool {
+        (self.flags & 0x400) != 0
+    }
+
+    /// Get sequence length
+    #[getter]
+    fn sequence_length(&self) -> usize {
+        self.sequence.len()
     }
 
     /// Get sequence as string
@@ -216,10 +334,13 @@ pub struct PyBamReader {
 /// Attributes:
 ///     text (str): SAM header text
 ///     reference_count (int): Number of reference sequences
+///     reference_names (list[str]): List of all reference names
 ///
-/// Note:
-///     Reference sequences can be accessed via the header text.
-///     Full reference sequence API coming in future version.
+/// Example:
+///     >>> header = bam.header
+///     >>> print(f"References: {', '.join(header.reference_names)}")
+///     >>> ref_id = header.get_reference_id("chr1")
+///     >>> print(f"chr1 is reference {ref_id}")
 #[pyclass(name = "BamHeader")]
 #[derive(Clone)]
 pub struct PyBamHeader {
@@ -230,10 +351,90 @@ pub struct PyBamHeader {
     /// Number of reference sequences
     #[pyo3(get)]
     pub reference_count: usize,
+
+    /// Reference sequences (internal storage)
+    references: Vec<PyReference>,
+
+    /// Reference name to ID mapping (for fast lookup)
+    name_to_id: HashMap<String, usize>,
 }
 
 #[pymethods]
 impl PyBamHeader {
+    /// Get list of all reference names
+    ///
+    /// Returns:
+    ///     list[str]: List of reference sequence names
+    ///
+    /// Example:
+    ///     >>> names = header.reference_names
+    ///     >>> print(f"First reference: {names[0]}")
+    #[getter]
+    fn reference_names(&self) -> Vec<String> {
+        self.references.iter().map(|r| r.name.clone()).collect()
+    }
+
+    /// Get reference by ID
+    ///
+    /// Args:
+    ///     reference_id (int): Reference sequence ID (0-based)
+    ///
+    /// Returns:
+    ///     Reference | None: Reference object or None if ID is invalid
+    ///
+    /// Example:
+    ///     >>> ref = header.reference(0)
+    ///     >>> print(f"{ref.name}: {ref.length} bp")
+    fn reference(&self, reference_id: usize) -> Option<PyReference> {
+        self.references.get(reference_id).cloned()
+    }
+
+    /// Get reference name by ID
+    ///
+    /// Args:
+    ///     reference_id (int): Reference sequence ID (0-based)
+    ///
+    /// Returns:
+    ///     str | None: Reference name or None if ID is invalid
+    ///
+    /// Example:
+    ///     >>> name = header.reference_name(0)
+    ///     >>> print(f"Reference 0 is {name}")
+    fn reference_name(&self, reference_id: usize) -> Option<String> {
+        self.references.get(reference_id).map(|r| r.name.clone())
+    }
+
+    /// Get reference length by ID
+    ///
+    /// Args:
+    ///     reference_id (int): Reference sequence ID (0-based)
+    ///
+    /// Returns:
+    ///     int | None: Reference length in bases or None if ID is invalid
+    ///
+    /// Example:
+    ///     >>> length = header.reference_length(0)
+    ///     >>> print(f"Reference 0 is {length} bp")
+    fn reference_length(&self, reference_id: usize) -> Option<u32> {
+        self.references.get(reference_id).map(|r| r.length)
+    }
+
+    /// Get reference ID by name
+    ///
+    /// Args:
+    ///     name (str): Reference sequence name (e.g., "chr1", "chrM")
+    ///
+    /// Returns:
+    ///     int | None: Reference ID (0-based) or None if name not found
+    ///
+    /// Example:
+    ///     >>> ref_id = header.get_reference_id("chr1")
+    ///     >>> if ref_id is not None:
+    ///     ...     print(f"chr1 is reference {ref_id}")
+    fn get_reference_id(&self, name: &str) -> Option<usize> {
+        self.name_to_id.get(name).copied()
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "BamHeader(references={}, text_len={})",
@@ -245,9 +446,26 @@ impl PyBamHeader {
 
 impl From<&Header> for PyBamHeader {
     fn from(header: &Header) -> Self {
+        // Convert references
+        let references: Vec<PyReference> = header
+            .references
+            .iter()
+            .map(|r| r.into())
+            .collect();
+
+        // Build name-to-ID mapping for O(1) lookup
+        let name_to_id: HashMap<String, usize> = header
+            .references
+            .iter()
+            .enumerate()
+            .map(|(id, r)| (r.name.clone(), id))
+            .collect();
+
         PyBamHeader {
             text: header.text.clone(),
             reference_count: header.reference_count(),
+            references,
+            name_to_id,
         }
     }
 }
@@ -322,7 +540,129 @@ impl PyBamReader {
         }
     }
 
+    /// Query records in a specific genomic region
+    ///
+    /// Args:
+    ///     path (str): Path to BAM file
+    ///     reference_id (int): Reference sequence ID (0-based)
+    ///     start (int | None): Start position (0-based, inclusive). None = start of reference
+    ///     end (int | None): End position (0-based, exclusive). None = end of reference
+    ///
+    /// Returns:
+    ///     Iterator[BamRecord]: Iterator yielding records in the specified region
+    ///
+    /// Note:
+    ///     This performs a full file scan (O(n)) since BAI index support is not yet implemented.
+    ///     For indexed random access, see roadmap for BAI/CSI support.
+    ///
+    /// Example:
+    ///     >>> # Query chr1:1000-2000
+    ///     >>> for record in biometal.BamReader.query("alignments.bam", reference_id=0, start=1000, end=2000):
+    ///     ...     print(f"{record.name}: {record.position}")
+    ///     >>>
+    ///     >>> # Query entire reference
+    ///     >>> for record in biometal.BamReader.query("alignments.bam", reference_id=1):
+    ///     ...     process(record)
+    #[staticmethod]
+    #[pyo3(signature = (path, reference_id, start=None, end=None))]
+    fn query(
+        path: String,
+        reference_id: usize,
+        start: Option<i32>,
+        end: Option<i32>,
+    ) -> PyResult<PyBamRegionIter> {
+        let path_buf = PathBuf::from(path);
+        let reader = BamReader::from_path(&path_buf)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+        let header = PyBamHeader::from(reader.header());
+
+        Ok(PyBamRegionIter {
+            reader: Some(reader),
+            reference_id,
+            start,
+            end,
+            header,
+        })
+    }
+
     fn __repr__(&self) -> String {
         format!("BamReader(references={})", self.header.reference_count)
+    }
+}
+
+/// Iterator for querying BAM records in a genomic region
+///
+/// Created by BamReader.query(). Yields only records within the specified region.
+///
+/// Note:
+///     This performs a full file scan. BAI/CSI index support for O(log n) queries
+///     is planned for a future release.
+#[pyclass(name = "BamRegionIter", unsendable)]
+pub struct PyBamRegionIter {
+    reader: Option<BamReader<CompressedReader>>,
+    reference_id: usize,
+    start: Option<i32>,
+    end: Option<i32>,
+    header: PyBamHeader,
+}
+
+#[pymethods]
+impl PyBamRegionIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<PyBamRecord> {
+        // Copy filter criteria to avoid borrow checker issues
+        let reference_id = slf.reference_id;
+        let start = slf.start;
+        let end = slf.end;
+
+        if let Some(ref mut reader) = slf.reader {
+            loop {
+                match reader.read_record() {
+                    Ok(Some(record)) => {
+                        // Check if record matches region criteria
+                        if let Some(rec_ref_id) = record.reference_id {
+                            if rec_ref_id == reference_id {
+                                // Check position range
+                                let in_range = match (start, end, record.position) {
+                                    (Some(start), Some(end), Some(pos)) => pos >= start && pos < end,
+                                    (Some(start), None, Some(pos)) => pos >= start,
+                                    (None, Some(end), Some(pos)) => pos < end,
+                                    (None, None, _) => true,  // No range specified, include all
+                                    (_, _, None) => false,  // Record has no position, skip
+                                };
+
+                                if in_range {
+                                    return Ok(record.into());
+                                }
+                                // Record not in range, continue to next record
+                            }
+                            // Record on different reference, continue
+                        }
+                        // Record unmapped, continue
+                    }
+                    Ok(None) => return Err(PyStopIteration::new_err("no more records")),
+                    Err(e) => {
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                            e.to_string(),
+                        ))
+                    }
+                }
+            }
+        } else {
+            Err(PyStopIteration::new_err("iterator exhausted"))
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        let start_str = self.start.map(|s| s.to_string()).unwrap_or_else(|| "0".to_string());
+        let end_str = self.end.map(|e| e.to_string()).unwrap_or_else(|| "end".to_string());
+        format!(
+            "BamRegionIter(ref={}, {}:{})",
+            self.reference_id, start_str, end_str
+        )
     }
 }
