@@ -21,6 +21,60 @@ learnings = "Time-boxed experiments catch dead-ends early. VDB is database syste
 publication = "Planned: Technical blog post 'Evidence-Based Abandonment: Why Custom SRA Decoders Are Impractical'"
 files = "PROPOSAL.md, RESEARCH_LOG.md, FINDINGS.md (complete documentation)"
 
+[[experiment]]
+name = "native-bam-implementation"
+status = "implementation"  # Phase 0 complete (GO), moving to Phase 1
+hypothesis = "Native ARM-optimized BAM reader can achieve ≥2× speedup vs noodles via parallel BGZF + native parsing"
+start_date = "2025-11-08"
+owner = "Scott Handley"
+timeline = "9-12 weeks (6 phases with decision points)"
+success_criteria = "Phase 0: ✅ Profiling complete, bottleneck identified. Target: ≥2× ARM speedup via parallel BGZF"
+decision_date = "2025-11-08"  # Phase 0 - GO decision (strategic + performance)
+outcome = "go"  # GO - Full-stack ownership + parallel BGZF optimization
+phase = "Phase 1: Minimal BAM Reader (Week 2-3)"
+profiling_results = "100K records, 8.7 Mrec/sec baseline. BGZF: 66-80% (PRIMARY TARGET), sequence decoding: <6%, record parsing: 6-13%"
+primary_optimization = "Parallel BGZF decompression (proven 6.5× speedup, captures 66-80% bottleneck)"
+strategic_value = "Full-stack ARM-native ownership, no external dependencies, foundation for CAF, aligns with biometal mission"
+reason = "Profiling revealed BGZF as bottleneck (66-80%). Parallel BGZF captures optimization regardless of parsing approach. Native implementation provides strategic value (full-stack ownership) for similar speedup (~4-5× both native and noodles). Strategic considerations (full control, no dependencies, ARM-first) are decisive."
+expected_speedup = "~4-5× overall (primarily from parallel BGZF 6.5× on 70% CPU time)"
+learnings = "Profile first, optimize second. Strategic value matters when speedup is similar. Full-stack ownership aligns with ARM-native mission. BGZF bottleneck exists regardless of parsing approach."
+publication = "Dual-format paper: 'Native BAM + CAF for ARM' - shows profiling-driven optimization + strategic design"
+files = "PROPOSAL.md, PHASE_0_RESEARCH.md, NEON_OPPORTUNITIES.md, DECISION_REVISED.md, profiling/, flamegraph.svg"
+next_milestone = "Phase 1 complete: Minimal BAM parser + differential testing"
+
+[[experiment]]
+name = "columnar-alignment-format"
+status = "proposed"  # Design phase, starts after BAM Phase 3-4
+hypothesis = "Columnar alignment format (CAF) optimized for ARM NEON can achieve 5-10× speedup vs BAM for analytical operations"
+start_date = "2025-12-20"  # After BAM Phase 3-4 (estimated)
+owner = "Scott Handley"
+timeline = "6 weeks (4 phases)"
+success_criteria = "Lossless BAM↔CAF conversion, ≥5× speedup for operations, 1.5-2× storage overhead acceptable"
+outcome = "pending"
+phase = "Design Phase (pre-implementation)"
+innovation = "World's first ARM-native columnar alignment format, optimized for 2025+ hardware (NEON, GPU, zstd)"
+strategic_value = "Pioneer modern format design, 5-10× analytical performance, experimental research tool"
+trade_offs = "1.5-2× larger files for 5-10× faster operations, incompatible with existing tools initially"
+files = "PROPOSAL.md, CAF_SPECIFICATION.md (draft v1.0)"
+next_decision = "After BAM Phase 3-4 complete"
+publication = "Part of dual-format paper (see alignment-formats-paper/)"
+
+[[experiment]]
+name = "alignment-formats-paper"
+status = "planning"  # Paper planning phase
+hypothesis = "Dual-format strategy (BAM + CAF) demonstrates hardware-aware format optimization benefits"
+start_date = "2025-11-08"
+owner = "Scott Handley"
+timeline = "24 weeks (implementation + benchmarking + writing)"
+target_journal = "Bioinformatics (Oxford) or BMC Bioinformatics"
+expected_submission = "2026-05-01"  # Q2 2026, ~6 months
+paper_title = "Dual-Format Strategy for ARM-Native Bioinformatics: BAM and CAF"
+combines_experiments = ["native-bam-implementation", "columnar-alignment-format"]
+deliverables = "Paper (4,000 words), benchmarks (N=30), figures (4-5), tables (3-4), supplementary data"
+key_results = "BAM: 2-3× speedup (NEON), CAF: 5-10× speedup (columnar), lossless conversion, decision framework"
+files = "PAPER_OUTLINE.md, BENCHMARKING_PLAN.md, README.md"
+phase = "Week 1 of 24 (implementation phase)"
+
 # Future experiments will be added here as they're proposed
 # Format:
 # [[experiment]]

@@ -1,8 +1,8 @@
 # biometal: Claude Development Guide
 
 **Project**: biometal - ARM-native bioinformatics library
-**Status**: v1.2.0 - Python Phase 4 Bindings (November 6, 2025)
-**Grade**: A (rust-code-quality-reviewer compatible)
+**Latest Release**: v1.2.0 (November 6, 2025)
+**Current Work**: BAM/SAM parser implementation (experiments/native-bam-implementation/)
 
 ---
 
@@ -22,16 +22,10 @@ Democratize bioinformatics by enabling 5TB dataset analysis on consumer hardware
 
 ### 1. Evidence-Based Design
 
-Every optimization comes from validated experimental results (ASBB project):
-- **Follow OPTIMIZATION_RULES.md**: 6 rules from 1,357 experiments (N=30)
-- **Don't guess**: Reference ASBB evidence for optimization decisions
-- **Document rationale**: Link implementations to specific rules/entries
-
-Example:
-```rust
-// Rule 2: Block size from Entry 027 (1,440 measurements)
-const BLOCK_SIZE: usize = 10_000; // Evidence-based, not arbitrary
-```
+Every optimization comes from validated experimental results (apple-silicon-bio-bench):
+- Follow OPTIMIZATION_RULES.md: 6 rules from 1,357 experiments (N=30)
+- Don't guess: Reference ASBB evidence for optimization decisions
+- Document rationale: Link implementations to specific rules/entries
 
 ### 2. Streaming-First Architecture
 
@@ -58,7 +52,7 @@ pub fn operation(input: &[u8]) -> Result {
 }
 ```
 
-Platform priority: Mac → Linux ARM (Graviton) → x86_64 fallback
+Platform priority: Mac ARM → Linux ARM (Graviton) → x86_64 fallback
 
 ### 4. Production Quality
 
@@ -72,33 +66,24 @@ Platform priority: Mac → Linux ARM (Graviton) → x86_64 fallback
 
 ## Project Status
 
-**v1.2.0 Released** (November 6, 2025)
-- Production-ready ARM-native bioinformatics library
-- **Complete Python API**: 40+ functions (core ops + k-mers + Phase 4)
-- **Phase 4 Python Bindings**: 20 new functions (sequence, record, trimming, masking)
+### Released (v1.2.0)
+- FASTQ/FASTA streaming parsers (constant memory)
+- ARM NEON operations (base counting, GC content, quality filtering)
+- Sequence manipulation (reverse_complement, trimming, masking)
+- K-mer operations (extraction, minimizers, spectrum)
+- Network streaming (HTTP, SRA)
+- Python bindings (PyO3 0.27, 40+ functions)
 - 347 tests passing (260 library + 87 doc)
-- Python bindings (PyO3 0.27, Python 3.9-3.14)
-- Cross-platform validated (Mac ARM, AWS Graviton, x86_64)
-- Grade A (rust-code-quality-reviewer compatible)
 
-### Recent Releases
-- **v1.0.0** (Nov 5, 2025): Core library - FASTQ/FASTA streaming, NEON ops, network streaming
-- **v1.1.0** (Nov 6, 2025): K-mer operations & complexity scoring (Entry 034 evidence)
-- **v1.2.0** (Nov 6, 2025): Python bindings for Phase 4 sequence operations
+### In Progress
+- **BAM/SAM Parser**: Native implementation in experiments/native-bam-implementation/
+  - Phase 1-3 complete (record parsing, error types, robustness)
+  - Currently evaluating for production integration
+  - See: experiments/native-bam-implementation/NOODLES_LESSONS.md
 
-See [CHANGELOG.md](CHANGELOG.md) for complete release history.
-
-### Recent Experiments
-
-**sra-decoder** (Nov 5, 2025) - Status: NO-GO
-- Hypothesis: Native ARM SRA decoder achieves ≥10x speedup
-- Outcome: NO-GO (Day 2, evidence-based termination)
-- Finding: VDB format complexity (5,000-10,000 LOC), projected 2-3x speedup (fails ≥10x threshold)
-- Alternative: SRA Toolkit wrapper (500-1,000 LOC, NCBI maintains format)
-- Documentation: experiments/sra-decoder/{PROPOSAL,RESEARCH_LOG,FINDINGS}.md
-- Learning: Time-boxed experiments catch dead-ends early (saved 12 days)
-
-See: `experiments/.experiments.toml` and `experiments/sra-decoder/`
+### Distribution
+- **PyPI**: biometal-rs (pip install biometal-rs)
+- **crates.io**: biometal (cargo add biometal)
 
 ---
 
@@ -107,207 +92,83 @@ See: `experiments/.experiments.toml` and `experiments/sra-decoder/`
 ```
 biometal/
 ├── src/
-│   ├── lib.rs              # Public API, re-exports
-│   ├── io/                 # Streaming parsers (Rules 3-5)
-│   │   ├── fastq.rs        # FASTQ streaming (DONE)
-│   │   ├── fasta.rs        # FASTA streaming (DONE)
-│   │   ├── compression.rs  # Parallel bgzip + mmap (DONE)
-│   │   ├── network.rs      # HTTP streaming (DONE)
-│   │   └── sra.rs          # SRA (toolkit wrapper recommended)
-│   ├── operations/         # Operations (Rule 1 NEON + Phase 4 primitives)
-│   │   ├── base_counting.rs    # DONE (Rule 1: NEON)
-│   │   ├── gc_content.rs       # DONE (Rule 1: NEON)
-│   │   ├── quality_filter.rs   # DONE (Rule 1: NEON)
-│   │   ├── sequence.rs         # DONE (Phase 4: reverse_complement, complement, reverse)
-│   │   ├── record_ops.rs       # DONE (Phase 4: extract_region, length filtering, to_fasta_record)
-│   │   ├── trimming.rs         # DONE (Phase 4: quality/fixed trimming)
-│   │   ├── masking.rs          # DONE (Phase 4: quality-based masking)
-│   │   ├── kmer.rs             # DONE (v1.1.0: k-mer operations, Entry 034)
-│   │   └── complexity.rs       # DONE (v1.1.0: Shannon entropy scoring)
-│   ├── python/             # Python bindings (PyO3 0.27)
-│   │   ├── mod.rs          # Module registration (40+ functions)
-│   │   ├── records.rs      # PyFastqRecord, PyFastaRecord
-│   │   ├── streams.rs      # PyFastqStream, PyFastaStream
-│   │   ├── operations.rs   # Core operations (GC, base counting)
-│   │   ├── kmers.rs        # K-mer operations (v1.1.0)
-│   │   ├── sequence.rs     # Sequence ops (v1.2.0: 6 functions)
-│   │   ├── record_ops.rs   # Record manipulation (v1.2.0: 5 functions)
-│   │   ├── trimming.rs     # Trimming operations (v1.2.0: 7 functions)
-│   │   └── masking.rs      # Masking operations (v1.2.0: 2 functions)
+│   ├── lib.rs              # Public API
+│   ├── io/                 # Streaming parsers
+│   │   ├── fastq.rs        # FASTQ streaming
+│   │   ├── fasta.rs        # FASTA streaming
+│   │   ├── bam/            # BAM/SAM (in development)
+│   │   ├── compression.rs  # Parallel bgzip + mmap
+│   │   ├── network.rs      # HTTP streaming
+│   │   ├── paired.rs       # Paired-end reads
+│   │   ├── sink.rs         # Output writers
+│   │   └── sra.rs          # SRA toolkit wrapper
+│   ├── operations/         # Analysis operations
+│   │   ├── base_counting.rs    # NEON-optimized
+│   │   ├── gc_content.rs       # NEON-optimized
+│   │   ├── quality_filter.rs   # NEON-optimized
+│   │   ├── sequence.rs         # Sequence manipulation
+│   │   ├── record_ops.rs       # Record operations
+│   │   ├── trimming.rs         # Quality/fixed trimming
+│   │   ├── masking.rs          # Quality masking
+│   │   ├── kmer.rs             # K-mer operations
+│   │   └── complexity.rs       # Shannon entropy
+│   ├── python/             # Python bindings (PyO3)
 │   ├── optimization/       # Platform detection
-│   │   ├── platform.rs     # DONE
-│   │   └── thresholds.rs   # DONE
-│   ├── error.rs            # Error types (DONE)
+│   ├── error.rs            # Error types
 │   └── types.rs            # Common types
 ├── benches/                # Criterion benchmarks
 ├── examples/               # Usage examples
-├── docs/                   # Documentation
-│   ├── ARCHITECTURE.md           # Network streaming architecture
-│   ├── PERFORMANCE_TUNING.md     # Configuration guide
-│   └── CODE_QUALITY_IMPROVEMENTS.md  # Pending improvements
 ├── experiments/            # Research experiments
 │   ├── .experiments.toml   # Experiment registry
 │   ├── TEMPLATE/           # Experiment template
-│   └── sra-decoder/        # Completed experiment (NO-GO)
+│   ├── sra-decoder/        # Completed (NO-GO)
+│   └── native-bam-implementation/  # In progress
 ├── OPTIMIZATION_RULES.md   # Evidence base (1,357 experiments)
-├── README.md               # User documentation
 ├── CLAUDE.md               # This file
-└── Cargo.toml
+└── CHANGELOG.md            # Version history
 ```
 
 ---
 
-## Implementation Guidelines
+## The 6 Optimization Rules
 
 ### Rule 1: ARM NEON SIMD (16-25x speedup)
-
-When: Element-wise operations (complexity 0.30-0.40)
-
-```rust
-#[cfg(target_arch = "aarch64")]
-use std::arch::aarch64::*;
-
-#[cfg(target_arch = "aarch64")]
-pub unsafe fn count_bases_neon(seq: &[u8]) -> [u32; 4] {
-    // Process 16 bytes at a time with NEON
-    // See OPTIMIZATION_RULES.md Rule 1 for full example
-}
-
-#[cfg(not(target_arch = "aarch64"))]
-pub fn count_bases_scalar(seq: &[u8]) -> [u32; 4] {
-    // Scalar fallback
-}
-```
-
-Evidence: Entry 020-025 (307 experiments, 9,210 measurements)
+**When**: Element-wise operations (complexity 0.30-0.40)
+**Evidence**: Entry 020-025 (307 experiments, 9,210 measurements)
+**Example**: Base counting, GC content calculation
 
 ### Rule 2: Block-Based Processing (10K records)
-
-Why: Preserves NEON speedup (avoids 82-86% overhead)
-
-```rust
-const BLOCK_SIZE: usize = 10_000; // From Entry 027
-
-pub struct FastqStream<R: BufRead> {
-    reader: R,
-    block_buffer: Vec<FastqRecord>,
-}
-
-impl<R: BufRead> FastqStream<R> {
-    fn process_block(&mut self) -> Result<ProcessedBlock> {
-        self.block_buffer.clear();
-
-        while self.block_buffer.len() < BLOCK_SIZE {
-            match self.read_record()? {
-                Some(record) => self.block_buffer.push(record),
-                None => break,
-            }
-        }
-
-        let results = unsafe { process_block_neon(&self.block_buffer) };
-        Ok(ProcessedBlock::new(results))
-    }
-}
-```
-
-Evidence: Entry 027 (1,440 measurements)
+**When**: Preserving NEON speedup in streaming contexts
+**Evidence**: Entry 027 (1,440 measurements)
+**Value**: Avoids 82-86% overhead from single-record processing
 
 ### Rule 3: Parallel Bgzip (6.5x speedup)
+**When**: All bgzip-compressed files
+**Evidence**: Entry 029 (CPU parallel prototype)
+**Implementation**: Rayon-based parallel block decompression
 
-When: All bgzip-compressed files
-
-```rust
-use rayon::prelude::*;
-
-pub fn decompress_bgzip_parallel(compressed: &[u8]) -> io::Result<Vec<u8>> {
-    let blocks = parse_bgzip_blocks(compressed)?;
-
-    let decompressed: Vec<_> = blocks
-        .par_iter()
-        .map(|block| decompress_block(block))
-        .collect::<io::Result<Vec<_>>>()?;
-
-    Ok(decompressed.concat())
-}
-```
-
-Evidence: Entry 029 (CPU parallel prototype)
-
-### Rule 4: Smart mmap (2.5x additional, threshold-based)
-
-When: Files ≥50 MB on macOS
-
-```rust
-const MMAP_THRESHOLD: u64 = 50 * 1024 * 1024; // 50 MB
-
-enum DataSource {
-    StandardIo(Vec<u8>),
-    MemoryMapped(Mmap),
-}
-
-impl DataSource {
-    pub fn open(path: &Path) -> io::Result<Self> {
-        let size = std::fs::metadata(path)?.len();
-
-        if size >= MMAP_THRESHOLD {
-            Self::open_mmap(path)
-        } else {
-            Ok(Self::StandardIo(std::fs::read(path)?))
-        }
-    }
-}
-```
-
-Evidence: Entry 032 (scale validation, 0.54-544 MB)
+### Rule 4: Smart mmap (2.5x additional)
+**When**: Files ≥50 MB on macOS
+**Evidence**: Entry 032 (scale validation, 0.54-544 MB)
+**Threshold-based**: Only activate for large files
 
 ### Rule 5: Constant-Memory Streaming (~5 MB)
-
-Always: Design for streaming, not batch
-
-```rust
-pub struct FastqStream<R: BufRead> {
-    reader: R,
-    line_buffer: String,
-    // NO Vec<FastqRecord> accumulation
-}
-
-impl<R: BufRead> Iterator for FastqStream<R> {
-    type Item = io::Result<FastqRecord>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // Read one record, return, discard
-        // Memory stays constant
-    }
-}
-```
-
-Evidence: Entry 026 (720 measurements, 99.5% reduction)
+**Always**: Design for streaming, not batch
+**Evidence**: Entry 026 (720 measurements, 99.5% reduction)
+**Pattern**: Iterator-based APIs, no accumulation
 
 ### Rule 6: Network Streaming
+**Why**: I/O dominates 264-352x
+**Evidence**: Entry 028 (360 measurements)
+**Critical**: Makes network streaming viable
 
-Why: I/O dominates 264-352x (makes network streaming critical)
-
-```rust
-pub enum DataSource {
-    Local(PathBuf),
-    Http(Url),
-    Sra(String),
-}
-
-pub struct StreamingReader {
-    source: DataSource,
-    cache: LruCache<BlockId, Vec<u8>>,
-    prefetch: Prefetcher,
-}
-```
-
-Evidence: Entry 028 (360 measurements)
+See OPTIMIZATION_RULES.md for complete implementation details.
 
 ---
 
 ## Error Handling
 
-Always use `Result` types:
+Always use `Result` types with structured errors:
 
 ```rust
 #[derive(Debug, thiserror::Error)]
@@ -328,85 +189,13 @@ pub enum BiometalError {
 pub type Result<T> = std::result::Result<T, BiometalError>;
 ```
 
----
-
-## Testing Strategy
-
-### Property-Based Testing
-
-```rust
-use proptest::prelude::*;
-
-proptest! {
-    #[test]
-    fn test_base_counting_matches_naive(seq in "[ACGT]{1,1000}") {
-        let neon_result = count_bases_neon(seq.as_bytes());
-        let naive_result = count_bases_naive(seq.as_bytes());
-        prop_assert_eq!(neon_result, naive_result);
-    }
-}
-```
-
-### Benchmarking
-
-```rust
-use criterion::{criterion_group, criterion_main, Criterion};
-
-fn bench_base_counting(c: &mut Criterion) {
-    let seq = generate_sequence(100_000);
-
-    c.bench_function("base_counting_neon", |b| {
-        b.iter(|| count_bases_neon(&seq))
-    });
-}
-
-criterion_group!(benches, bench_base_counting);
-criterion_main!(benches);
-```
-
----
-
-## Documentation Requirements
-
-Every public API must have:
-1. Doc comment explaining functionality
-2. Example showing usage
-3. Link to evidence (when implementing optimizations)
-
-Example:
-```rust
-/// Stream FASTQ records from a file with constant memory.
-///
-/// Uses block-based processing (10K records) to preserve ARM NEON speedup
-/// while maintaining streaming benefits. Memory footprint remains constant
-/// at ~5 MB regardless of file size.
-///
-/// # Evidence
-///
-/// - Rule 2 (Block-based): Entry 027, 1,440 measurements
-/// - Rule 5 (Streaming): Entry 026, 99.5% memory reduction
-///
-/// # Example
-///
-/// ```
-/// use biometal::FastqStream;
-///
-/// let stream = FastqStream::from_path("large.fq.gz")?;
-/// for record in stream {
-///     let record = record?;
-///     // Process one record at a time
-/// }
-/// # Ok::<(), biometal::Error>(())
-/// ```
-pub struct FastqStream<R: BufRead> { /* ... */ }
-```
+Never use `unwrap()` or `expect()` in library code.
 
 ---
 
 ## Common Pitfalls
 
 ### 1. Accumulating Records in Memory
-
 Bad:
 ```rust
 let mut records = Vec::new();
@@ -424,7 +213,6 @@ for record in FastqStream::from_path(path)? {
 ```
 
 ### 2. Using unwrap() in Library Code
-
 Bad:
 ```rust
 pub fn operation(input: &[u8]) -> Output {
@@ -443,7 +231,6 @@ pub fn operation(input: &[u8]) -> Result<Output> {
 ```
 
 ### 3. Implementing Optimizations Without Evidence
-
 Bad:
 ```rust
 const BLOCK_SIZE: usize = 8_192; // Arbitrary choice
@@ -456,7 +243,6 @@ const BLOCK_SIZE: usize = 10_000;
 ```
 
 ### 4. Platform-Specific Code Without Fallback
-
 Bad:
 ```rust
 pub fn operation(input: &[u8]) -> Result {
@@ -477,17 +263,15 @@ pub fn operation(input: &[u8]) -> Result {
 
 ---
 
-## For Claude: Session Guidelines
+## Session Guidelines
 
 ### What to Emphasize
-
 - Evidence-based design (follow OPTIMIZATION_RULES.md)
 - Streaming-first architecture (constant memory)
 - ARM-native with portable fallback
 - Production quality (error handling, docs, tests)
 
 ### What NOT to Do
-
 - Don't make up optimization parameters (refer to evidence)
 - Don't accumulate records in memory (streaming only)
 - Don't panic in library code (use Result)
@@ -495,12 +279,12 @@ pub fn operation(input: &[u8]) -> Result {
 
 ### Decision Framework
 
-When user asks "how should I implement X?":
+When implementing features:
 1. Check OPTIMIZATION_RULES.md for relevant rule
 2. Follow the implementation pattern for that rule
 3. Link to evidence (lab notebook entry)
 
-When user proposes optimization:
+When evaluating optimizations:
 1. Is this validated in ASBB experiments?
 2. If yes: Which rule/entry documents it?
 3. If no: Suggest validating first or using proven approach
@@ -515,7 +299,40 @@ When research/innovation ideas arise:
 5. Document negative results (valuable for community)
 6. Update `.experiments.toml` registry
 
-See: `experiments/README.md` for full process
+See: experiments/README.md for full process
+
+---
+
+## Testing Strategy
+
+### Property-Based Testing
+```rust
+use proptest::prelude::*;
+
+proptest! {
+    #[test]
+    fn test_base_counting_matches_naive(seq in "[ACGT]{1,1000}") {
+        let neon_result = count_bases_neon(seq.as_bytes());
+        let naive_result = count_bases_naive(seq.as_bytes());
+        prop_assert_eq!(neon_result, naive_result);
+    }
+}
+```
+
+### Benchmarking
+```rust
+use criterion::{criterion_group, criterion_main, Criterion};
+
+fn bench_base_counting(c: &mut Criterion) {
+    let seq = generate_sequence(100_000);
+    c.bench_function("base_counting_neon", |b| {
+        b.iter(|| count_bases_neon(&seq))
+    });
+}
+
+criterion_group!(benches, bench_base_counting);
+criterion_main!(benches);
+```
 
 ---
 
@@ -526,93 +343,22 @@ See: `experiments/README.md` for full process
 - Source: apple-silicon-bio-bench
 - Rules: 6 optimization rules (OPTIMIZATION_RULES.md)
 
-### Current Status
-- **Version**: v1.0.0 (Released November 5, 2025)
-- **Phase 4**: Sequence manipulation primitives (Complete November 6, 2025)
-- **Tests**: 279 passing (209 unit/integration + 70 doc)
-- **Grade**: A (rust-code-quality-reviewer, post-Phase 4)
-- **Python**: PyO3 0.27 (Python 3.9-3.14)
-- **Platforms**: Mac ARM (optimized), Graviton/x86_64 (portable)
-
-### Distribution
-- **PyPI**: https://pypi.org/project/biometal-rs/ ✅ Published
-  - Install: `pip install biometal-rs`
-  - Import: `import biometal`
-- **crates.io**: https://crates.io/crates/biometal ✅ Published
-  - Install: `cargo add biometal`
-
 ### Platform Support
-1. **Mac ARM** (M1/M2/M3/M4): 16-25× NEON speedup (optimized)
-2. **Linux ARM** (Graviton): 6-10× NEON speedup (portable)
-3. **x86_64**: 1× scalar fallback (portable)
+1. **Mac ARM** (M1/M2/M3/M4): 16-25x NEON speedup (optimized)
+2. **Linux ARM** (Graviton): 6-10x NEON speedup (portable)
+3. **x86_64**: 1x scalar fallback (portable)
 
----
-
-## Session Restart Checklist
-
-When starting a new Claude session:
-
-### Quick Context
-1. **Project**: biometal v1.2.0 - ARM-native bioinformatics library
-2. **Status**: v1.2.0 released (Nov 6, 2025) - Python Phase 4 bindings
-3. **Tests**: 347 passing (260 library + 87 doc)
-4. **Grade**: A (rust-code-quality-reviewer compatible)
-5. **Philosophy**: Evidence-based optimization (1,357 experiments, 40,710 measurements)
-
-### Key Files to Reference
-- `CLAUDE.md` (this file) - Development guidelines
+### Key Files
 - `OPTIMIZATION_RULES.md` - 6 evidence-based rules
 - `CHANGELOG.md` - Version history
 - `README.md` - User documentation
-- `DOCUMENTATION_REVIEW.md` - Post-publication documentation audit
+- `experiments/.experiments.toml` - Experiment registry
 
-### Recent Releases (Detailed)
-- ✅ **v1.0.0** (Nov 5, 2025): Core library
-  - FASTQ/FASTA streaming (constant memory)
-  - ARM NEON operations (16-25× speedup)
-  - Network streaming (HTTP, SRA)
-  - Cross-platform validated (Mac ARM, Graviton, x86_64)
-  - Published to PyPI (biometal-rs) and crates.io (biometal)
-  - Grade A+ (rust-code-quality-reviewer)
-
-- ✅ **v1.1.0** (Nov 6, 2025): K-mer Operations & Complexity
-  - K-mer extraction, minimizers, spectrum (Entry 034 evidence)
-  - Shannon entropy complexity scoring
-  - Python bindings for k-mer operations
-  - Parallel extraction (opt-in, 2.2× speedup)
-  - 260 tests (254 unit/integration + 6 property-based)
-  - Grade A+ (rust-code-quality-reviewer)
-
-- ✅ **v1.2.0** (Nov 6, 2025): Python Phase 4 Bindings
-  - 20 new Python functions (sequence, record, trimming, masking)
-  - Complete QC pipeline support (trim → filter → mask)
-  - Trimmomatic-compatible sliding window trimming
-  - Quality-based masking for variant calling pipelines
-  - 347 tests (260 library + 87 doc)
-  - Grade A (rust-code-quality-reviewer compatible)
-
-### Known State
-- **Package naming**: `biometal-rs` on PyPI, `biometal` on crates.io/GitHub
-- **Latest version**: v1.2.0 (both platforms)
-- **Python API**: 40+ functions (core ops + k-mers + Phase 4)
-- **Test coverage**: 347 tests (260 library + 87 doc)
-- **Linux ARM wheels**: Temporarily disabled (cross-compilation complexity)
-- **Phase 4 NEON**: Deferred (evidence-based decision, <2× estimated vs ≥5× threshold)
-- **K-mer NEON**: Scalar-only (Entry 034: data-structure-bound, NEON provides no benefit)
-
-### Next Priorities (TBD)
+### Current Focus Areas
+- BAM/SAM parser (experiments/native-bam-implementation/)
 - Community feedback on v1.2.0 Python bindings
-- Python examples & tutorials (Jupyter notebooks)
-- Performance benchmarking vs existing tools (cutadapt, Trimmomatic)
-- BAM/SAM format support (evidence-based evaluation needed)
-- Extended operation coverage (alignment, assembly)
-
-### Important Patterns
-- Always follow evidence-based design (reference OPTIMIZATION_RULES.md)
-- Maintain streaming-first architecture (constant ~5 MB memory)
-- ARM-native with portable fallback (never ARM-only)
-- Use Result types (no panics in library)
+- Performance benchmarking vs existing tools
 
 ---
 
-**Last Updated**: November 6, 2025 (Post v1.2.0 Release)
+**Last Updated**: November 8, 2025 (Post BAM Phase 3)

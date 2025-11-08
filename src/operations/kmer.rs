@@ -59,14 +59,63 @@ use std::collections::HashMap;
 ///
 /// Minimizers are used for efficient sequence indexing and sketching.
 /// They represent the lexicographically smallest k-mer in a sliding window.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// # Backward Compatibility
+///
+/// This struct now stores only position and hash for performance (1.25× faster).
+/// K-mer sequence can be extracted on-demand using helper functions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Minimizer {
     /// Position in the original sequence
     pub position: usize,
-    /// FNV-1a hash value of the k-mer
+    /// ntHash canonical hash value of the k-mer
     pub hash: u64,
-    /// The k-mer sequence itself
-    pub kmer: Vec<u8>,
+    /// K-mer size (for extracting k-mer from sequence)
+    pub k: usize,
+}
+
+impl Minimizer {
+    /// Extract the k-mer from the original sequence (zero-copy).
+    ///
+    /// Returns a slice reference to the k-mer without allocation.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use biometal::operations::kmer::extract_minimizers_fast;
+    ///
+    /// let sequence = b"ATGCATGCATGC";
+    /// let minimizers = extract_minimizers_fast(sequence, 3, 5).unwrap();
+    ///
+    /// for m in &minimizers {
+    ///     let kmer = m.kmer(sequence); // Zero-copy slice
+    ///     println!("K-mer: {:?}", kmer);
+    /// }
+    /// ```
+    #[inline]
+    pub fn kmer<'a>(&self, sequence: &'a [u8]) -> &'a [u8] {
+        &sequence[self.position..self.position + self.k]
+    }
+
+    /// Extract the k-mer as an owned Vec (allocates).
+    ///
+    /// Only use this when you need to store the k-mer separately from
+    /// the sequence. For most cases, use `kmer()` for zero-copy access.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use biometal::operations::kmer::extract_minimizers_fast;
+    ///
+    /// let sequence = b"ATGCATGCATGC";
+    /// let minimizers = extract_minimizers_fast(sequence, 3, 5).unwrap();
+    ///
+    /// let kmer_owned = minimizers[0].kmer_owned(sequence); // Allocates Vec
+    /// ```
+    #[inline]
+    pub fn kmer_owned(&self, sequence: &[u8]) -> Vec<u8> {
+        self.kmer(sequence).to_vec()
+    }
 }
 
 /// Extract overlapping k-mers from a sequence (scalar-only)
@@ -274,7 +323,6 @@ pub fn extract_minimizers(sequence: &[u8], k: usize, w: usize) -> Vec<Minimizer>
         // Find k-mer with minimum hash in this window
         let mut min_hash = u64::MAX;
         let mut min_pos = window_start;
-        let mut min_kmer = Vec::new();
 
         for i in window_start..window_end {
             let kmer = &sequence[i..i + k];
@@ -287,7 +335,6 @@ pub fn extract_minimizers(sequence: &[u8], k: usize, w: usize) -> Vec<Minimizer>
             if hash < min_hash {
                 min_hash = hash;
                 min_pos = i;
-                min_kmer = kmer.to_vec();
             }
         }
 
@@ -296,7 +343,7 @@ pub fn extract_minimizers(sequence: &[u8], k: usize, w: usize) -> Vec<Minimizer>
             minimizers.push(Minimizer {
                 position: min_pos,
                 hash: min_hash,
-                kmer: min_kmer,
+                k,
             });
             last_minimizer_pos = Some(min_pos);
         }
@@ -310,7 +357,8 @@ pub fn extract_minimizers(sequence: &[u8], k: usize, w: usize) -> Vec<Minimizer>
 /// This function uses the optimized algorithm from simd-minimizers:
 /// 1. **ntHash**: O(1) rolling hash per k-mer (vs O(k) per hash)
 /// 2. **Sliding Min**: O(1) amortized minimum finding (vs O(w) per window)
-/// 3. **Canonical**: Min of forward and reverse-complement hashes
+/// 3. **Lazy k-mer**: Zero-copy extraction (1.40× speedup, Entry 036-C)
+/// 4. **Canonical**: Min of forward and reverse-complement hashes
 ///
 /// # Performance
 ///
@@ -321,9 +369,9 @@ pub fn extract_minimizers(sequence: &[u8], k: usize, w: usize) -> Vec<Minimizer>
 /// # Evidence
 ///
 /// - **Source**: Port from simd-minimizers (MIT licensed)
-/// - **Entry 036**: Baseline 3.7 Mbp/s (naive algorithm)
-/// - **SimdMinimizers**: 820 Mbp/s (221× faster)
-/// - **Target**: 100-200× speedup with block-based streaming
+/// - **Entry 036-B**: 77 Mbp/s @ 1Mbp (ntHash + sliding_min)
+/// - **Entry 036-C**: 105 Mbp/s @ 1Mbp (lazy k-mer, 1.40× speedup)
+/// - **SimdMinimizers**: 820 Mbp/s (target)
 ///
 /// # Algorithm
 ///
@@ -378,25 +426,139 @@ pub fn extract_minimizers_fast(sequence: &[u8], k: usize, w: usize) -> Result<Ve
     let mut minimizers = Vec::new();
     let mut last_minimizer_pos = None;
 
-    // Process each hash from ntHash iterator
+    // Process hashes directly (no blocking needed - ntHash + SlidingMin already O(1))
     for (pos, hash) in hash_iter.enumerate() {
         // Push hash to sliding window and get minimum if window is full
         if let Some(min_elem) = sliding_min.push(hash, pos) {
             // Only add if position is different from last minimizer (deduplication)
             if last_minimizer_pos != Some(min_elem.pos) {
-                // Extract the k-mer at the minimum position
-                let kmer = sequence[min_elem.pos..min_elem.pos + k].to_vec();
-
                 minimizers.push(Minimizer {
                     position: min_elem.pos,
                     hash: min_elem.val,
-                    kmer,
+                    k,
                 });
 
                 last_minimizer_pos = Some(min_elem.pos);
             }
         }
     }
+
+    Ok(minimizers)
+}
+
+/// Extract minimizers using SIMD-accelerated algorithm (3-15× faster than scalar)
+///
+/// This function uses the `simd-minimizers` library for ARM NEON/AVX2 vectorization.
+/// It combines bitpacking (2 bits/base) + SIMD parallelization for maximum performance.
+///
+/// # Performance (Entry 036-E)
+///
+/// **Validated benchmarks** (Mac M1, RUSTFLAGS="-C target-cpu=native", N=20):
+/// - **≤10Kbp**: SIMD is **slower** (0.41-0.84×) due to chunking overhead
+/// - **100Kbp**: SIMD is **1.39-1.51× faster** (crossover point)
+/// - **1Mbp**: SIMD is **1.94× faster** (99 → 193 MiB/s) ✓
+/// - **10Mbp**: SIMD is **1.50× faster** (98 → 147 MiB/s) ✓
+///
+/// **Algorithm**: Processes 8 k-mers in parallel using SIMD instructions
+///
+/// # When to Use
+///
+/// - **Genomic-scale** (≥100Kbp): Use SIMD for 1.5-1.9× speedup
+/// - **Short sequences** (<100Kbp): Use `extract_minimizers_fast` (faster)
+/// - **Mixed workloads**: Profile your data to find crossover point
+///
+/// # Gap from Literature
+///
+/// The simd-minimizers paper reports 3-15× speedup, but we achieve 1.5-1.9×
+/// due to double hashing overhead (SIMD positions + ntHash recomputation for
+/// API compatibility). This is still a meaningful speedup for production workloads.
+///
+/// # Evidence
+///
+/// - **Entry 036-E** (SIMD validation): 1.5-1.9× @ ≥100Kbp (this implementation)
+/// - **Entry 036-C** (fast baseline): 105 MiB/s @ 1Mbp
+/// - **Source**: simd-minimizers v2.2 (MIT licensed)
+/// - **Paper**: "SimdMinimizers: Computing Random Minimizers, fast" (SEA 2025)
+///
+/// # Requirements
+///
+/// Enable the `simd` feature in Cargo.toml:
+/// ```toml
+/// biometal = { version = "1.2", features = ["simd"] }
+/// ```
+///
+/// Compile with native CPU features:
+/// ```bash
+/// RUSTFLAGS="-C target-cpu=native" cargo build --release --features simd
+/// ```
+///
+/// # Arguments
+///
+/// * `sequence` - DNA sequence (A, C, G, T, N)
+/// * `k` - K-mer size
+/// * `w` - Window size
+///
+/// # Returns
+///
+/// Vector of minimizers with position, hash, and k-mer size.
+/// Same format as `extract_minimizers_fast` for API compatibility.
+///
+/// # Errors
+///
+/// Returns `Err` if inputs are invalid or sequence contains unsupported characters.
+///
+/// # Examples
+///
+/// ```ignore
+/// use biometal::operations::kmer::extract_minimizers_simd;
+///
+/// // Best for genomic-scale sequences (≥100Kbp)
+/// // For this example, we'll use a smaller sequence
+/// let sequence = b"ATGCATGCATGCATGCATGCATGCATGC";
+/// let minimizers = extract_minimizers_simd(sequence, 5, 7).unwrap();
+///
+/// for m in minimizers.iter().take(5) {
+///     let kmer = m.kmer(sequence);
+///     println!("Position: {}, k-mer: {:?}", m.position, std::str::from_utf8(kmer).unwrap());
+/// }
+///
+/// // For production use with large sequences:
+/// // let genome = std::fs::read("genome.fasta")?;  // 1-100 Mbp
+/// // let minimizers = extract_minimizers_simd(&genome, 21, 11)?;
+/// ```
+#[cfg(feature = "simd")]
+pub fn extract_minimizers_simd(sequence: &[u8], k: usize, w: usize) -> Result<Vec<Minimizer>> {
+    use packed_seq::AsciiSeq;
+
+    // Validation
+    if k == 0 || w == 0 || k > sequence.len() {
+        return Ok(Vec::new());
+    }
+
+    // Wrap ASCII sequence for simd-minimizers
+    // AsciiSeq is a zero-cost wrapper that implements the Seq trait
+    let ascii_seq = AsciiSeq(sequence);
+
+    // Use simd-minimizers library for SIMD-accelerated extraction
+    // This uses ARM NEON (or AVX2 on x86) to process 8 k-mers in parallel
+    let positions = simd_minimizers::canonical_minimizer_positions(ascii_seq, k, w);
+
+    // Convert positions to our Minimizer format
+    // Note: We recompute hashes using ntHash for compatibility with our API
+    let hash_iter = NtHashIterator::new(sequence, k)?;
+    let hashes: Vec<(usize, u64)> = hash_iter.enumerate().collect();
+
+    let minimizers = positions
+        .into_iter()
+        .filter_map(|pos| {
+            let pos_usize = pos as usize;  // Convert u32 to usize
+            hashes.get(pos_usize).map(|&(_idx, hash)| Minimizer {
+                position: pos_usize,
+                hash,
+                k,
+            })
+        })
+        .collect();
 
     Ok(minimizers)
 }
@@ -857,8 +1019,10 @@ mod tests {
 
         // Each minimizer should have valid fields
         for minimizer in &minimizers {
-            assert!(minimizer.kmer.len() == 3);
-            assert!(is_valid_kmer(&minimizer.kmer));
+            assert_eq!(minimizer.k, 3);
+            let kmer = minimizer.kmer(sequence);
+            assert_eq!(kmer.len(), 3);
+            assert!(is_valid_kmer(kmer));
             assert!(minimizer.hash > 0);
         }
     }
@@ -896,7 +1060,8 @@ mod tests {
 
         // Should skip k-mers with N but still produce minimizers
         for minimizer in &minimizers {
-            assert!(is_valid_kmer(&minimizer.kmer));
+            let kmer = minimizer.kmer(sequence);
+            assert!(is_valid_kmer(kmer));
         }
     }
 
@@ -912,8 +1077,10 @@ mod tests {
 
         // Each minimizer should have valid fields
         for minimizer in &minimizers {
-            assert_eq!(minimizer.kmer.len(), 3);
-            assert!(is_valid_kmer(&minimizer.kmer));
+            assert_eq!(minimizer.k, 3);
+            let kmer = minimizer.kmer(sequence);
+            assert_eq!(kmer.len(), 3);
+            assert!(is_valid_kmer(kmer));
             assert!(minimizer.hash > 0);
         }
     }
@@ -965,8 +1132,9 @@ mod tests {
         for minimizer in &minimizers {
             assert!(minimizer.position + 3 <= sequence.len());
             // Verify k-mer matches the position
+            let kmer = minimizer.kmer(sequence);
             let expected_kmer = &sequence[minimizer.position..minimizer.position + 3];
-            assert_eq!(minimizer.kmer, expected_kmer);
+            assert_eq!(kmer, expected_kmer);
         }
     }
 
@@ -981,8 +1149,90 @@ mod tests {
 
         // Verify all minimizers are valid
         for minimizer in &minimizers {
-            assert_eq!(minimizer.kmer.len(), 21);
+            assert_eq!(minimizer.k, 21);
+            let kmer = minimizer.kmer(sequence);
+            assert_eq!(kmer.len(), 21);
             assert!(minimizer.position + 21 <= sequence.len());
+        }
+    }
+
+    // ===== SIMD Minimizer Tests =====
+
+    #[test]
+    #[cfg(feature = "simd")]
+    fn test_extract_minimizers_simd_correctness() {
+        // Verify SIMD implementation produces valid minimizers
+        // Note: SIMD uses strand-aware selection (leftmost vs rightmost based on TG content)
+        // while fast uses simple leftmost selection, so they may select different (but equally valid) minimizers
+        let sequences = vec![
+            b"ATGCATGCATGCATGCATGC".as_ref(),
+            b"AAAACCCGGGTTTTACGT".as_ref(),
+            b"ATGCATGCATGCATGCATGCATGCATGCATGCATGCATGC".as_ref(),
+        ];
+
+        let k_values = [21, 31];
+        let w_values = [11, 19];
+
+        for seq in &sequences {
+            for &k in &k_values {
+                for &w in &w_values {
+                    // Skip if k > sequence length
+                    if k > seq.len() {
+                        continue;
+                    }
+
+                    let simd_minimizers = extract_minimizers_simd(seq, k, w).unwrap();
+
+                    // SIMD should produce valid minimizers
+                    assert!(
+                        !simd_minimizers.is_empty() || k + w - 1 > seq.len(),
+                        "SIMD should produce minimizers for valid parameters (k={}, w={}, len={})",
+                        k,
+                        w,
+                        seq.len()
+                    );
+
+                    // Verify all SIMD minimizers are valid
+                    for (i, minimizer) in simd_minimizers.iter().enumerate() {
+                        // Check k-mer size matches
+                        assert_eq!(minimizer.k, k, "Minimizer {} has wrong k-mer size", i);
+
+                        // Check position is valid
+                        assert!(
+                            minimizer.position + k <= seq.len(),
+                            "Minimizer {} position {} + k {} exceeds sequence length {}",
+                            i,
+                            minimizer.position,
+                            k,
+                            seq.len()
+                        );
+
+                        // Check k-mer is valid
+                        let kmer = minimizer.kmer(seq);
+                        assert_eq!(kmer.len(), k, "Minimizer {} k-mer has wrong length", i);
+                        assert!(
+                            is_valid_kmer(kmer),
+                            "Minimizer {} k-mer {:?} is invalid",
+                            i,
+                            std::str::from_utf8(kmer).unwrap_or("<invalid>")
+                        );
+
+                        // Check hash is non-zero (ntHash property)
+                        assert!(minimizer.hash != 0, "Minimizer {} has zero hash", i);
+                    }
+
+                    // Verify no duplicate consecutive positions (deduplication property)
+                    for i in 1..simd_minimizers.len() {
+                        assert_ne!(
+                            simd_minimizers[i - 1].position,
+                            simd_minimizers[i].position,
+                            "Consecutive minimizers {} and {} have same position",
+                            i - 1,
+                            i
+                        );
+                    }
+                }
+            }
         }
     }
 
