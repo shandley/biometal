@@ -34,6 +34,7 @@
 
 use std::io;
 use std::fmt;
+use super::error::BamDecodeError;
 
 /// Tag value types in BAM format.
 ///
@@ -293,10 +294,7 @@ impl Tags {
 
             // Check for duplicate tags (BAM spec violation)
             if !seen_tags.insert(tag_name) {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("Duplicate tag: {}{}", tag_name[0] as char, tag_name[1] as char),
-                ));
+                return Err(BamDecodeError::DuplicateTag { tag: tag_name }.into());
             }
 
             // Read tag type (1 byte)
@@ -528,12 +526,8 @@ fn parse_tag_value(data: &[u8], type_code: u8) -> io::Result<(TagValue, usize)> 
             }
 
             let count_u32 = u32::from_le_bytes([data[1], data[2], data[3], data[4]]);
-            let count = usize::try_from(count_u32).map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("Array count too large for platform: {} (exceeds usize::MAX)", count_u32),
-                )
-            })?;
+            let count = usize::try_from(count_u32)
+                .map_err(|_| BamDecodeError::ArrayCountOverflow { count: count_u32 })?;
             let mut offset = 5;
 
             let array_value = match array_type {

@@ -89,6 +89,7 @@
 //! ```
 
 pub mod cigar;
+pub mod error;
 pub mod header;
 pub mod record;
 pub mod reader;
@@ -98,6 +99,7 @@ pub mod tags;
 
 // Re-export main types for convenience
 pub use cigar::{CigarOp, parse_cigar};
+pub use error::BamDecodeError;
 pub use header::{Header, Reference};
 pub use record::{Record, parse_record};
 pub use reader::{BamReader, Records};

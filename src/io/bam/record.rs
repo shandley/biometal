@@ -28,6 +28,7 @@
 //! ```
 
 use super::cigar::{parse_cigar, CigarOp};
+use super::error::BamDecodeError;
 use super::sequence::decode_sequence;
 use super::tags::{parse_tags, Tags};
 use std::io::{self, Read};
@@ -89,10 +90,11 @@ fn parse_reference_id(ref_id: i32, field_name: &str) -> io::Result<Option<usize>
     match ref_id {
         UNMAPPED => Ok(None),
         n if n >= 0 => Ok(Some(n as usize)),
-        invalid => Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("Invalid {} reference ID: {} (must be -1 or >= 0)", field_name, invalid),
-        )),
+        invalid => Err(BamDecodeError::InvalidReferenceId {
+            value: invalid,
+            field: field_name.to_string(),
+        }
+        .into()),
     }
 }
 
@@ -231,14 +233,16 @@ pub fn parse_record(data: &[u8]) -> io::Result<Record> {
     let pos = read_i32_le(data, &mut cursor)?;
 
     // Read name length (1 byte)
-    let l_read_name = read_u8(data, &mut cursor)? as usize;
+    let l_read_name_u8 = read_u8(data, &mut cursor)?;
+    let l_read_name = l_read_name_u8 as usize;
 
     // BAM spec requires l_read_name >= 1 (minimum "*\0" for unmapped reads)
     if l_read_name == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("Invalid read name length at offset {}: must be >= 1", cursor - 1),
-        ));
+        return Err(BamDecodeError::InvalidReadNameLength {
+            length: l_read_name_u8,
+            offset: cursor - 1,
+        }
+        .into());
     }
 
     // MAPQ (1 byte)

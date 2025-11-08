@@ -59,14 +59,35 @@ Noodles demonstrates several advanced patterns for robust BAM parsing that we sh
 - +180 lines of validation code
 - Production-grade spec compliance
 
-### 🔄 Phase 2: Error Refactoring (PENDING)
+### ✅ Phase 2: Error Refactoring (COMPLETE)
 
-**Planned:**
-- [ ] Create BamDecodeError enum (error.rs)
-- [ ] Update parsing to use structured errors
-- [ ] Split-first pattern for safer parsing
+**Implemented:**
+1. ✅ Created BamDecodeError enum - `src/io/bam/error.rs`
+   - 16 specific error variants with context
+   - Pattern matching support for precise error handling
+   - Automatic conversion to/from io::Error
 
-**Priority:** HIGH (improves debuggability, enables specific error matching)
+2. ✅ Updated Phase 1 validations to use structured errors:
+   - `DuplicateTag { tag }` - Spec violation detection
+   - `InvalidReferenceId { value, field }` - Only -1 or ≥0 allowed
+   - `InvalidReadNameLength { length, offset }` - Must be ≥1
+   - `ArrayCountOverflow { count }` - 32-bit platform safety
+
+3. ✅ Maintained backward compatibility:
+   - Public API still uses io::Result
+   - Display impl produces same error messages
+   - All 346 tests passing
+
+**Results:**
+- Production-grade error messages with context
+- Type-safe error matching enabled
+- Better debugging capabilities
+- Zero API breaking changes
+- Integration test validated (100K records)
+
+**Deferred:**
+- [ ] Split-first pattern (LOW priority, would require large refactor)
+- [ ] Remaining error sites (keep as io::Error for now)
 
 ### 📋 Phase 3: API Improvements (BACKLOG)
 
