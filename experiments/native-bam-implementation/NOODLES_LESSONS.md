@@ -89,14 +89,52 @@ Noodles demonstrates several advanced patterns for robust BAM parsing that we sh
 - [ ] Split-first pattern (LOW priority, would require large refactor)
 - [ ] Remaining error sites (keep as io::Error for now)
 
-### 📋 Phase 3: API Improvements (BACKLOG)
+### ✅ Phase 2.5: Additional Improvements (COMPLETE)
+
+**Implemented:**
+1. ✅ Missing quality scores pattern - `src/io/bam/record.rs:460-464`
+   - Detects all-0xFF quality bytes (BAM spec for missing quality)
+   - Returns empty Vec for missing quality scores
+
+2. ✅ checked_mul for array size calculations - `src/io/bam/tags.rs:561-670`
+   - Added overflow protection for all array types
+   - Prevents overflow when count * element_size > usize::MAX
+   - Applied to Int16, UInt16, Int32, UInt32, Float arrays
+
+3. ✅ Test coverage - Added 5 new tests:
+   - `test_missing_quality_scores` (record.rs)
+   - `test_present_quality_scores` (record.rs)
+   - `test_array_size_overflow` (tags.rs)
+   - `test_array_size_overflow_int16` (tags.rs)
+   - `test_array_size_overflow_float` (tags.rs)
+
+**Results:**
+- 70 tests passing (was 67, +3 from Phase 2.5)
+- Integration test validated (100K records)
+
+### ✅ Phase 3: Oversized CIGAR (COMPLETE)
+
+**Implemented:**
+1. ✅ Oversized CIGAR handling - `src/io/bam/record.rs:194-281, 474-476`
+   - Detects pattern: 2-op CIGAR where first is kS (k=seq_len), second is *N
+   - Extracts real CIGAR from CG:B,i tag (Int32 array)
+   - Handles long-read data (nanopore, PacBio) with >65535 CIGAR operations
+
+2. ✅ Test coverage - Added 3 new tests:
+   - `test_oversized_cigar_from_cg_tag` - Validates CG tag extraction
+   - `test_normal_cigar_not_affected` - Ensures normal CIGAR unchanged
+   - `test_oversized_pattern_without_cg_tag` - Handles missing CG tag gracefully
+
+**Results:**
+- 70 tests passing (was 67, total +3 tests across Phases 2.5 & 3)
+- Integration test validated (100K records)
+- Handles edge case for long-read sequencing data
+
+### 📋 Phase 4: Future Improvements (BACKLOG)
 
 **Deferred (MEDIUM/LOW priority):**
-- [ ] Missing quality scores pattern (all-0xFF)
-- [ ] Oversized CIGAR handling (>65535 ops)
 - [ ] Deferred validation (Option<io::Result<T>>)
 - [ ] Zero-copy array parsing
-- [ ] checked_mul for array size calculations
 
 ---
 
