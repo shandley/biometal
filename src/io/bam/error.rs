@@ -7,7 +7,7 @@
 //!
 //! Inspired by noodles-bam's error hierarchy for production-grade error handling.
 
-use std::{error, fmt, io, num};
+use std::{error, fmt, io};
 
 /// Errors that can occur during BAM decoding.
 ///

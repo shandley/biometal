@@ -560,7 +560,12 @@ fn parse_tag_value(data: &[u8], type_code: u8) -> io::Result<(TagValue, usize)> 
                 }
                 b's' => {
                     // Int16 array
-                    let bytes_needed = count * 2;
+                    let bytes_needed = count.checked_mul(2).ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Array size overflow: count={}", count),
+                        )
+                    })?;
                     if data.len() < offset + bytes_needed {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
@@ -578,7 +583,12 @@ fn parse_tag_value(data: &[u8], type_code: u8) -> io::Result<(TagValue, usize)> 
                 }
                 b'S' => {
                     // UInt16 array
-                    let bytes_needed = count * 2;
+                    let bytes_needed = count.checked_mul(2).ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Array size overflow: count={}", count),
+                        )
+                    })?;
                     if data.len() < offset + bytes_needed {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
@@ -596,7 +606,12 @@ fn parse_tag_value(data: &[u8], type_code: u8) -> io::Result<(TagValue, usize)> 
                 }
                 b'i' => {
                     // Int32 array
-                    let bytes_needed = count * 4;
+                    let bytes_needed = count.checked_mul(4).ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Array size overflow: count={}", count),
+                        )
+                    })?;
                     if data.len() < offset + bytes_needed {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
@@ -614,7 +629,12 @@ fn parse_tag_value(data: &[u8], type_code: u8) -> io::Result<(TagValue, usize)> 
                 }
                 b'I' => {
                     // UInt32 array
-                    let bytes_needed = count * 4;
+                    let bytes_needed = count.checked_mul(4).ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Array size overflow: count={}", count),
+                        )
+                    })?;
                     if data.len() < offset + bytes_needed {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
@@ -632,7 +652,12 @@ fn parse_tag_value(data: &[u8], type_code: u8) -> io::Result<(TagValue, usize)> 
                 }
                 b'f' => {
                     // Float array
-                    let bytes_needed = count * 4;
+                    let bytes_needed = count.checked_mul(4).ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Array size overflow: count={}", count),
+                        )
+                    })?;
                     if data.len() < offset + bytes_needed {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
@@ -771,5 +796,77 @@ mod tests {
         let result = tags.iter();
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Insufficient"));
+    }
+
+    #[test]
+    fn test_array_size_overflow() {
+        // Test that count * element_size overflow is detected
+        // Use a count that when multiplied by 4 (for i32) would overflow usize
+        // On 64-bit: usize::MAX/4 + 1 would overflow when multiplied by 4
+        // On 32-bit: use smaller value that still overflows
+        let huge_count = if cfg!(target_pointer_width = "64") {
+            ((usize::MAX / 4) as u64 + 1).min(u32::MAX as u64) as u32
+        } else {
+            u32::MAX / 2
+        };
+
+        let mut data = vec![
+            b'A', b'R', b'B', b'I',  // AR:B:I (int32 array)
+        ];
+        // Huge count that would overflow when multiplied by 4
+        data.extend_from_slice(&huge_count.to_le_bytes());
+
+        let tags = Tags::from_raw(data);
+        let result = tags.iter();
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("overflow") || err_msg.contains("Insufficient"),
+                "Expected overflow or insufficient data error, got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_array_size_overflow_int16() {
+        // Test overflow for Int16 arrays (2 bytes per element)
+        // Use a count that when multiplied by 2 would overflow usize
+        let huge_count = if cfg!(target_pointer_width = "64") {
+            ((usize::MAX / 2) as u64 + 1).min(u32::MAX as u64) as u32
+        } else {
+            u32::MAX / 2 + 1
+        };
+
+        let mut data = vec![
+            b'A', b'R', b'B', b's',  // AR:B:s (int16 array)
+        ];
+        data.extend_from_slice(&huge_count.to_le_bytes());
+
+        let tags = Tags::from_raw(data);
+        let result = tags.iter();
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("overflow") || err_msg.contains("Insufficient"),
+                "Expected overflow or insufficient data error, got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_array_size_overflow_float() {
+        // Test overflow for Float arrays (4 bytes per element)
+        // Use a count that when multiplied by 4 would overflow usize
+        let huge_count = if cfg!(target_pointer_width = "64") {
+            ((usize::MAX / 4) as u64 + 1).min(u32::MAX as u64) as u32
+        } else {
+            u32::MAX / 2
+        };
+
+        let mut data = vec![
+            b'F', b'L', b'B', b'f',  // FL:B:f (float array)
+        ];
+        data.extend_from_slice(&huge_count.to_le_bytes());
+
+        let tags = Tags::from_raw(data);
+        let result = tags.iter();
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("overflow") || err_msg.contains("Insufficient"),
+                "Expected overflow or insufficient data error, got: {}", err_msg);
     }
 }

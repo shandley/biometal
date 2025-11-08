@@ -365,7 +365,14 @@ pub fn parse_record(data: &[u8]) -> io::Result<Record> {
         ));
     }
 
-    let quality = data[cursor..cursor + l_seq].to_vec();
+    // Quality scores (Phred+0, 0xFF = missing)
+    // BAM spec: When quality is omitted but sequence is not, qual is filled with 0xFF bytes
+    let quality_bytes = &data[cursor..cursor + l_seq];
+    let quality = if quality_bytes.iter().all(|&b| b == 0xFF) {
+        Vec::new() // Missing quality scores
+    } else {
+        quality_bytes.to_vec()
+    };
     cursor += l_seq;
 
     // Optional tags (remaining bytes)
@@ -890,5 +897,99 @@ mod tests {
             assert!(result.is_err(), "Should reject next_ref_id={}", invalid_id);
             assert!(result.unwrap_err().to_string().contains("Invalid mate reference ID"));
         }
+    }
+
+    #[test]
+    fn test_missing_quality_scores() {
+        // Test that all-0xFF quality bytes are detected as missing quality scores
+        let mut data = Vec::new();
+
+        // Block size (will be updated)
+        data.extend_from_slice(&0i32.to_le_bytes());
+        // refID
+        data.extend_from_slice(&0i32.to_le_bytes());
+        // pos
+        data.extend_from_slice(&100i32.to_le_bytes());
+        // l_read_name
+        data.push(5);
+        // mapq
+        data.push(60);
+        // bin
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // n_cigar_op
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // flag
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // l_seq
+        data.extend_from_slice(&10i32.to_le_bytes());
+        // next_refID
+        data.extend_from_slice(&(-1i32).to_le_bytes());
+        // next_pos
+        data.extend_from_slice(&(-1i32).to_le_bytes());
+        // tlen
+        data.extend_from_slice(&0i32.to_le_bytes());
+        // read_name
+        data.extend_from_slice(b"read\0");
+        // sequence (10 bases = 5 bytes)
+        data.extend_from_slice(&[0x12, 0x48, 0x12, 0x48, 0x12]);
+        // quality (all 0xFF = missing)
+        data.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+
+        // Update block size
+        let block_size = (data.len() - 4) as i32;
+        data[0..4].copy_from_slice(&block_size.to_le_bytes());
+
+        let result = parse_record(&data).expect("Should parse record with missing quality");
+
+        // Quality should be empty when all-0xFF
+        assert_eq!(result.quality.len(), 0, "All-0xFF quality should be detected as missing");
+        assert_eq!(result.sequence.len(), 10, "Sequence should still be present");
+    }
+
+    #[test]
+    fn test_present_quality_scores() {
+        // Test that non-0xFF quality bytes are preserved
+        let mut data = Vec::new();
+
+        // Block size (will be updated)
+        data.extend_from_slice(&0i32.to_le_bytes());
+        // refID
+        data.extend_from_slice(&0i32.to_le_bytes());
+        // pos
+        data.extend_from_slice(&100i32.to_le_bytes());
+        // l_read_name
+        data.push(5);
+        // mapq
+        data.push(60);
+        // bin
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // n_cigar_op
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // flag
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // l_seq
+        data.extend_from_slice(&5i32.to_le_bytes());
+        // next_refID
+        data.extend_from_slice(&(-1i32).to_le_bytes());
+        // next_pos
+        data.extend_from_slice(&(-1i32).to_le_bytes());
+        // tlen
+        data.extend_from_slice(&0i32.to_le_bytes());
+        // read_name
+        data.extend_from_slice(b"read\0");
+        // sequence (5 bases = 3 bytes)
+        data.extend_from_slice(&[0x12, 0x48, 0x10]);
+        // quality (real Phred scores)
+        data.extend_from_slice(&[30, 35, 40, 38, 32]);
+
+        // Update block size
+        let block_size = (data.len() - 4) as i32;
+        data[0..4].copy_from_slice(&block_size.to_le_bytes());
+
+        let result = parse_record(&data).expect("Should parse record with quality scores");
+
+        // Quality should be preserved
+        assert_eq!(result.quality, vec![30, 35, 40, 38, 32], "Quality scores should be preserved");
+        assert_eq!(result.sequence.len(), 5, "Sequence should be present");
     }
 }
