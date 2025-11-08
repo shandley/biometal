@@ -98,7 +98,7 @@ pub fn py_extract_minimizers(
         let dict = PyDict::new(py);
         dict.set_item("position", minimizer.position)?;
         dict.set_item("hash", minimizer.hash)?;
-        dict.set_item("kmer", minimizer.kmer)?;
+        dict.set_item("kmer", minimizer.kmer(sequence))?;
         result.push(dict.into());
     }
 
