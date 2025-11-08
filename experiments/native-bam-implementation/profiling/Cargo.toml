@@ -1,0 +1,12 @@
+[package]
+name = "bam-profiling"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+noodles-bam = "0.68"
+noodles-sam = "0.68"
+noodles-bgzf = "0.35"
+
+[profile.release]
+debug = true  # Enable debug symbols for profiling

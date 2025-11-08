@@ -33,6 +33,13 @@ bytes = { version = "1", optional = true }
 # Python bindings (Week 5-6)
 pyo3 = { version = "0.27", features = ["extension-module"], optional = true }
 
+# SIMD minimizers (Phase 3+4 optimization)
+simd-minimizers = { version = "2.2", optional = true }
+packed-seq = { version = "4.2", optional = true }
+
+# File format support: Use noodles directly (see docs/NOODLES_INTEGRATION.md)
+# No wrapper - direct noodles usage recommended for zero overhead
+
 [dev-dependencies]
 criterion = "0.5"       # Benchmarking
 proptest = "1.4"        # Property-based testing
@@ -53,6 +60,8 @@ crate-type = ["rlib", "cdylib"]
 default = ["network"]  # Enable network streaming by default (Rule 6)
 network = ["dep:reqwest", "dep:lru", "dep:tokio", "dep:bytes"]
 python = ["dep:pyo3"]
+simd = ["dep:simd-minimizers", "dep:packed-seq"]  # SIMD-accelerated minimizers (3-15× speedup)
+# Removed: formats feature (use noodles directly instead)
 
 [[bench]]
 name = "operations"
@@ -74,6 +83,15 @@ harness = false
 [[bench]]
 name = "minimizer_fast"
 harness = false
+
+[[bench]]
+name = "minimizer_optimization"
+harness = false
+
+[[bench]]
+name = "minimizer_simd"
+harness = false
+required-features = ["simd"]
 
 [profile.release]
 lto = true

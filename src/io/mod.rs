@@ -26,3 +26,9 @@ pub use network::{HttpClient, HttpReader};
 pub mod sra;
 #[cfg(feature = "network")]
 pub use sra::{is_sra_accession, sra_to_url};
+
+// Native BAM implementation (Phase 1-6)
+// ARM-optimized BAM parser with parallel BGZF decompression
+// See experiments/native-bam-implementation/ for design and profiling
+pub mod bam;
+pub use bam::BamReader;
