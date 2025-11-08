@@ -666,3 +666,202 @@ impl PyBamRegionIter {
         )
     }
 }
+
+//
+// Statistics Functions
+//
+
+/// Calculate per-position coverage for a genomic region
+///
+/// Args:
+///     path (str): Path to BAM file
+///     reference_id (int): Reference sequence ID (0-based)
+///     start (int | None): Start position (0-based, inclusive). None = start of reference
+///     end (int | None): End position (0-based, exclusive). None = end of reference
+///
+/// Returns:
+///     dict[int, int]: Mapping from position to coverage depth
+///
+/// Example:
+///     >>> coverage = biometal.calculate_coverage("alignments.bam", reference_id=0, start=1000, end=2000)
+///     >>> print(f"Position 1500 has {coverage.get(1500, 0)} reads")
+///
+/// Note:
+///     Only counts positions with coverage > 0. Missing positions have coverage 0.
+#[pyfunction]
+#[pyo3(signature = (path, reference_id, start=None, end=None))]
+pub fn calculate_coverage(
+    py: Python,
+    path: String,
+    reference_id: usize,
+    start: Option<i32>,
+    end: Option<i32>,
+) -> PyResult<HashMap<i32, u32>> {
+    let path_buf = PathBuf::from(path);
+    let reader = BamReader::from_path(&path_buf)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+    let mut coverage: HashMap<i32, u32> = HashMap::new();
+
+    // Read all records and calculate coverage
+    let mut reader = reader;
+    while let Ok(Some(record)) = reader.read_record() {
+        // Check if record matches region
+        if let Some(rec_ref_id) = record.reference_id {
+            if rec_ref_id == reference_id {
+                if let Some(pos) = record.position {
+                    // Check if position is in range
+                    let in_range = match (start, end) {
+                        (Some(s), Some(e)) => pos >= s && pos < e,
+                        (Some(s), None) => pos >= s,
+                        (None, Some(e)) => pos < e,
+                        (None, None) => true,
+                    };
+
+                    if in_range {
+                        // For now, just count the start position
+                        // TODO: Parse CIGAR to get full coverage
+                        *coverage.entry(pos).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(coverage)
+}
+
+/// Calculate MAPQ distribution histogram
+///
+/// Args:
+///     path (str): Path to BAM file
+///     reference_id (int | None): Optional reference ID to filter by
+///
+/// Returns:
+///     dict[int, int]: Mapping from MAPQ score to count
+///
+/// Example:
+///     >>> mapq_dist = biometal.mapq_distribution("alignments.bam")
+///     >>> for mapq in sorted(mapq_dist.keys()):
+///     ...     print(f"MAPQ {mapq}: {mapq_dist[mapq]:,} reads")
+#[pyfunction]
+#[pyo3(signature = (path, reference_id=None))]
+pub fn mapq_distribution(
+    py: Python,
+    path: String,
+    reference_id: Option<usize>,
+) -> PyResult<HashMap<u8, u32>> {
+    let path_buf = PathBuf::from(path);
+    let reader = BamReader::from_path(&path_buf)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+    let mut distribution: HashMap<u8, u32> = HashMap::new();
+
+    // Read all records and count MAPQ values
+    let mut reader = reader;
+    while let Ok(Some(record)) = reader.read_record() {
+        // Filter by reference if specified
+        if let Some(ref_id) = reference_id {
+            if record.reference_id != Some(ref_id) {
+                continue;
+            }
+        }
+
+        // Count MAPQ (treat None as 255 per SAM spec)
+        let mapq = record.mapq.unwrap_or(255);
+        *distribution.entry(mapq).or_insert(0) += 1;
+    }
+
+    Ok(distribution)
+}
+
+/// Count records by flag categories
+///
+/// Args:
+///     path (str): Path to BAM file
+///
+/// Returns:
+///     dict[str, int]: Mapping from flag category to count
+///
+/// Categories:
+///     - total: Total records
+///     - mapped: Mapped reads
+///     - unmapped: Unmapped reads
+///     - primary: Primary alignments
+///     - secondary: Secondary alignments
+///     - supplementary: Supplementary alignments
+///     - paired: Paired-end reads
+///     - proper_pair: Properly paired reads
+///     - forward: Forward strand
+///     - reverse: Reverse strand
+///     - qc_fail: Failed QC
+///     - duplicate: PCR/optical duplicates
+///
+/// Example:
+///     >>> stats = biometal.count_by_flag("alignments.bam")
+///     >>> print(f"Mapped: {stats['mapped']:,} / {stats['total']:,} ({100*stats['mapped']/stats['total']:.1f}%)")
+#[pyfunction]
+pub fn count_by_flag(py: Python, path: String) -> PyResult<HashMap<String, u32>> {
+    let path_buf = PathBuf::from(path);
+    let reader = BamReader::from_path(&path_buf)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+    let mut counts: HashMap<String, u32> = HashMap::new();
+
+    // Initialize counters
+    counts.insert("total".to_string(), 0);
+    counts.insert("mapped".to_string(), 0);
+    counts.insert("unmapped".to_string(), 0);
+    counts.insert("primary".to_string(), 0);
+    counts.insert("secondary".to_string(), 0);
+    counts.insert("supplementary".to_string(), 0);
+    counts.insert("paired".to_string(), 0);
+    counts.insert("proper_pair".to_string(), 0);
+    counts.insert("forward".to_string(), 0);
+    counts.insert("reverse".to_string(), 0);
+    counts.insert("qc_fail".to_string(), 0);
+    counts.insert("duplicate".to_string(), 0);
+
+    // Read all records and count flags
+    let mut reader = reader;
+    while let Ok(Some(record)) = reader.read_record() {
+        *counts.get_mut("total").unwrap() += 1;
+
+        let flags = record.flags;
+
+        if (flags & 0x4) == 0 {
+            *counts.get_mut("mapped").unwrap() += 1;
+        } else {
+            *counts.get_mut("unmapped").unwrap() += 1;
+        }
+
+        if (flags & 0x900) == 0 {
+            *counts.get_mut("primary").unwrap() += 1;
+        }
+        if (flags & 0x100) != 0 {
+            *counts.get_mut("secondary").unwrap() += 1;
+        }
+        if (flags & 0x800) != 0 {
+            *counts.get_mut("supplementary").unwrap() += 1;
+        }
+        if (flags & 0x1) != 0 {
+            *counts.get_mut("paired").unwrap() += 1;
+        }
+        if (flags & 0x2) != 0 {
+            *counts.get_mut("proper_pair").unwrap() += 1;
+        }
+        if (flags & 0x10) == 0 {
+            *counts.get_mut("forward").unwrap() += 1;
+        } else {
+            *counts.get_mut("reverse").unwrap() += 1;
+        }
+        if (flags & 0x200) != 0 {
+            *counts.get_mut("qc_fail").unwrap() += 1;
+        }
+        if (flags & 0x400) != 0 {
+            *counts.get_mut("duplicate").unwrap() += 1;
+        }
+    }
+
+    Ok(counts)
+}

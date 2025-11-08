@@ -97,6 +97,11 @@ fn biometal(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_mask_low_quality, m)?)?;
     m.add_function(wrap_pyfunction!(py_count_masked_bases, m)?)?;
 
+    // BAM statistics functions
+    m.add_function(wrap_pyfunction!(calculate_coverage, m)?)?;
+    m.add_function(wrap_pyfunction!(mapq_distribution, m)?)?;
+    m.add_function(wrap_pyfunction!(count_by_flag, m)?)?;
+
     // Module metadata
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add("__doc__", "ARM-native bioinformatics library with streaming architecture")?;
