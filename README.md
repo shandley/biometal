@@ -37,7 +37,7 @@ Stream data directly from networks and analyze terabyte-scale datasets on consum
 **Rust:**
 ```toml
 [dependencies]
-biometal = "1.2"
+biometal = "1.4"
 ```
 
 **Python:**
@@ -85,6 +85,8 @@ for record in stream:
 - **📓 [Interactive Tutorials](notebooks/)** - Jupyter notebooks with real workflows
 - **🦀 [API Reference](https://docs.rs/biometal)** - Full Rust documentation
 - **🐍 [Python Guide](docs/PYTHON.md)** - Python-specific documentation
+- **🧬 [BAM API Reference](docs/BAM_API.md)** - Complete BAM/SAM parser API (v1.4.0)
+- **⚡ [BAM Performance Guide](docs/BAM_PERFORMANCE.md)** - Benchmarks and optimization (v1.4.0)
 - **📐 [Architecture](docs/ARCHITECTURE.md)** - Technical design details
 - **📊 [Benchmarks](docs/BENCHMARKS.md)** - Performance analysis
 - **❓ [FAQ](FAQ.md)** - Frequently asked questions
@@ -102,6 +104,7 @@ Learn biometal through hands-on Jupyter notebooks (5 complete, ~2.5 hours):
 | [03. K-mer Analysis](notebooks/03_kmer_analysis.ipynb) | 30-40 min | ML preprocessing, DNABert (v1.1.0) |
 | [04. Network Streaming](notebooks/04_network_streaming.ipynb) | 30-40 min | HTTP streaming, public data (v1.0.0) |
 | [05. BAM Alignment Analysis](notebooks/05_bam_alignment_analysis.ipynb) | 30-40 min | BAM parsing, 4× speedup, filtering (v1.2.0+) |
+| [06. BAM Production Workflows](notebooks/06_bam_production_workflows.ipynb) | 45-60 min | Tag parsing, QC statistics, production pipelines (v1.4.0) |
 
 👉 **[Browse all tutorials →](notebooks/README.md)**
 
@@ -128,12 +131,15 @@ Learn biometal through hands-on Jupyter notebooks (5 complete, ~2.5 hours):
 - **Core operations**: GC content, base counting, quality scores
 - **K-mer operations**: Extraction, minimizers, spectrum (v1.1.0)
 - **QC operations**: Trimming, filtering, masking (v1.2.0)
-- **BAM/SAM parser**: Production-ready with 4× speedup via parallel BGZF (Nov 8, 2025)
-  - 4.54 million records/sec throughput
+- **BAM/SAM parser**: Production-ready with 4× speedup via parallel BGZF
+  - 4.4 million records/sec throughput
   - 43.0 MiB/s compressed file processing
   - Constant ~5 MB memory (streams terabyte-scale alignments)
   - **Python bindings (v1.3.0)**: CIGAR operations, SAM writing, alignment metrics
-- **40+ Python functions** for bioinformatics workflows
+  - **Production polish (v1.4.0)**: Tag convenience methods, statistics functions
+    - 6 tag accessors: `edit_distance()`, `alignment_score()`, `read_group()`, etc.
+    - 4 statistics functions: `insert_size_distribution()`, `edit_distance_stats()`, `strand_bias()`, `alignment_length_distribution()`
+- **50+ Python functions** for bioinformatics workflows
 
 ---
 
@@ -271,37 +277,45 @@ for record in stream:
     gc = biometal.gc_content(record.sequence)
 ```
 
-### BAM Alignment Analysis (v1.3.0)
+### BAM Alignment Analysis (v1.4.0)
 
 ```python
 import biometal
 
-# Stream BAM file with constant memory
+# Stream BAM file with constant memory (~5 MB)
 reader = biometal.BamReader.from_path("alignments.bam")
 
 for record in reader:
     # Access alignment details
     print(f"{record.name}: MAPQ={record.mapq}, pos={record.position}")
 
-    # Analyze CIGAR operations
+    # NEW v1.4.0: Tag convenience methods
+    edit_dist = record.edit_distance()  # NM tag
+    align_score = record.alignment_score()  # AS tag
+    read_group = record.read_group()  # RG tag
+    print(f"  Edit distance: {edit_dist}, Score: {align_score}, RG: {read_group}")
+
+    # CIGAR operations (v1.3.0)
     for op in record.cigar:
         if op.is_insertion() and op.length >= 5:
             print(f"  Found {op.length}bp insertion")
 
-    # Calculate alignment metrics
-    ref_len = record.reference_length()
-    query_len = record.query_length()
-    print(f"  Reference: {ref_len}bp, Query: {query_len}bp")
+# NEW v1.4.0: Built-in statistics functions
+# Insert size distribution (paired-end QC)
+dist = biometal.insert_size_distribution("alignments.bam")
+print(f"Mean insert size: {sum(s*c for s,c in dist.items())/sum(dist.values()):.1f}bp")
 
-# Convert BAM to SAM with filtering
-writer = biometal.SamWriter.create("output.sam")
-writer.write_header(reader.header)
+# Edit distance statistics (alignment quality)
+stats = biometal.edit_distance_stats("alignments.bam")
+print(f"Mean edit distance: {stats['mean']:.2f} mismatches/read")
 
-for record in reader:
-    if record.is_primary and record.mapq >= 30:
-        writer.write_record(record)
+# Strand bias (variant calling QC)
+bias = biometal.strand_bias("alignments.bam", reference_id=0, position=1000)
+print(f"Strand bias at chr1:1000: {bias['ratio']:.2f}:1")
 
-writer.close()
+# Alignment length distribution (RNA-seq QC)
+lengths = biometal.alignment_length_distribution("alignments.bam")
+print(f"Intron-spanning reads: {sum(c for l,c in lengths.items() if l > 1000)}")
 ```
 
 ---
