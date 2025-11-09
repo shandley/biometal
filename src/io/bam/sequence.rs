@@ -9,15 +9,21 @@
 //! - 16 possible values (4 bases + ambiguity codes)
 //! - Example: byte 0x12 -> bases at indices 1 ('A') and 2 ('C')
 //!
-//! # Evidence Base
+//! # Evidence Base (Updated Nov 9, 2025)
 //!
-//! Phase 0 profiling showed sequence decoding is <6% CPU time,
-//! so NEON optimization is deferred until profiling shows >=15% (Rule 1).
-//! This implementation uses a simple scalar lookup table.
+//! Microbenchmark revealed sequence decoding is **30.2%** of BAM parsing time!
+//! NEON optimization implemented (Rule 1): expected 16-25× speedup.
+//! Overall impact: +38-40% faster BAM parsing.
 //!
-//! See: `experiments/native-bam-implementation/DECISION_REVISED.md`
+//! See: `experiments/bam-simd-sequence-decoding/RESEARCH_LOG.md`
 
 use std::io;
+
+// NEON implementation (ARM64 only)
+// Module always declared, but only compiled on ARM64
+#[cfg(target_arch = "aarch64")]
+#[path = "sequence_neon.rs"]
+mod sequence_neon;
 
 /// BAM 4-bit to ASCII base lookup table.
 ///
@@ -25,6 +31,7 @@ use std::io;
 /// - 0 = '=' (match to reference, not used in practice)
 /// - 1-4 = A, C, G, T
 /// - 5-15 = IUPAC ambiguity codes (M, R, S, V, W, Y, H, K, D, B, N)
+#[cfg(any(not(target_arch = "aarch64"), test))]
 const SEQ_LOOKUP: [u8; 16] = [
     b'=', b'A', b'C', b'M', // 0-3
     b'G', b'R', b'S', b'V', // 4-7
@@ -32,10 +39,9 @@ const SEQ_LOOKUP: [u8; 16] = [
     b'K', b'D', b'B', b'N', // 12-15
 ];
 
-/// Decode a 4-bit encoded BAM sequence to ASCII.
+/// Decode a 4-bit encoded BAM sequence to ASCII (scalar implementation).
 ///
-/// BAM sequences are stored as 2 bases per byte (high nibble first).
-/// This function unpacks the 4-bit encoding to standard ASCII bases.
+/// This is the portable scalar implementation used as fallback on non-ARM platforms.
 ///
 /// # Arguments
 ///
@@ -49,23 +55,8 @@ const SEQ_LOOKUP: [u8; 16] = [
 /// # Errors
 ///
 /// Returns error if `data` is too short for the specified `length`.
-///
-/// # Performance
-///
-/// This is a scalar implementation. NEON optimization deferred until
-/// profiling shows sequence decoding is e15% CPU time (currently <6%).
-///
-/// # Example
-///
-/// ```
-/// use biometal::io::bam::decode_sequence;
-///
-/// // Byte 0x12 encodes bases at indices 1 ('A') and 2 ('C')
-/// let data = vec![0x12];
-/// let sequence = decode_sequence(&data, 2).unwrap();
-/// assert_eq!(sequence, b"AC");
-/// ```
-pub fn decode_sequence(data: &[u8], length: usize) -> io::Result<Vec<u8>> {
+#[cfg(not(target_arch = "aarch64"))]
+fn decode_sequence_scalar(data: &[u8], length: usize) -> io::Result<Vec<u8>> {
     // Check if we have enough data
     let required_bytes = length.div_ceil(2);
     if data.len() < required_bytes {
@@ -96,6 +87,58 @@ pub fn decode_sequence(data: &[u8], length: usize) -> io::Result<Vec<u8>> {
     }
 
     Ok(sequence)
+}
+
+/// Decode a 4-bit encoded BAM sequence to ASCII.
+///
+/// BAM sequences are stored as 2 bases per byte (high nibble first).
+/// This function unpacks the 4-bit encoding to standard ASCII bases.
+///
+/// # Performance
+///
+/// **ARM64 (M1/M2/M3/M4)**: Uses ARM NEON SIMD instructions
+/// - Expected: 16-25× faster than scalar (Rule 1)
+/// - Processes 32 bases per NEON iteration
+/// - Sequence decoding is **30.2%** of total BAM parsing time
+/// - Overall impact: **+38-40% faster BAM parsing**
+///
+/// **Other platforms**: Uses portable scalar implementation
+///
+/// # Arguments
+///
+/// * `data` - Packed 4-bit sequence data (ceil(length/2) bytes)
+/// * `length` - Number of bases to decode
+///
+/// # Returns
+///
+/// Vector of ASCII bases (A, C, G, T, N, etc.)
+///
+/// # Errors
+///
+/// Returns error if `data` is too short for the specified `length`.
+///
+/// # Example
+///
+/// ```
+/// use biometal::io::bam::decode_sequence;
+///
+/// // Byte 0x12 encodes bases at indices 1 ('A') and 2 ('C')
+/// let data = vec![0x12];
+/// let sequence = decode_sequence(&data, 2).unwrap();
+/// assert_eq!(sequence, b"AC");
+/// ```
+pub fn decode_sequence(data: &[u8], length: usize) -> io::Result<Vec<u8>> {
+    #[cfg(target_arch = "aarch64")]
+    {
+        // Use ARM NEON SIMD implementation
+        sequence_neon::decode_sequence_neon(data, length)
+    }
+
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        // Use scalar fallback on other platforms
+        decode_sequence_scalar(data, length)
+    }
 }
 
 #[cfg(test)]

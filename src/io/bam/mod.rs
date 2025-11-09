@@ -2,48 +2,59 @@
 //!
 //! This module provides a streaming, ARM-optimized BAM parser with:
 //! - Constant memory footprint (~5 MB, Rule 5)
-//! - Parallel BGZF decompression (6.5x speedup, Rule 3) - Phase 2
+//! - Parallel BGZF decompression (6.5x speedup, Rule 3)
+//! - ARM NEON sequence decoding (4.62x speedup, Rule 1) - v1.5.0
 //! - Full-stack ARM-native ownership
 //! - Spec-compliant parsing
+//!
+//! # Performance (v1.5.0)
+//!
+//! - **Overall throughput**: 55.1 MiB/s compressed BAM (5× faster than scalar baseline)
+//! - **Record processing**: 5.82 million records/sec
+//! - **Memory footprint**: Constant ~5 MB (streams terabyte-scale alignments)
 //!
 //! # Architecture
 //!
 //! The BAM implementation follows biometal's evidence-based design:
 //! - **Primary optimization**: Parallel BGZF (captures 66-80% CPU bottleneck)
+//! - **Secondary optimization**: ARM NEON sequence decoding (30.2% CPU time, +27.5% improvement)
 //! - **Streaming-first**: Iterator interface, constant memory
-//! - **ARM-native**: NEON optimizations where profiling shows value (>=15% CPU time)
+//! - **ARM-native**: NEON optimizations validated by profiling (≥15% CPU time threshold)
 //!
 //! # Evidence Base
 //!
-//! Phase 0 profiling (100K records, flamegraph analysis):
-//! - BGZF decompression: 66-80% CPU time (PRIMARY TARGET)
-//! - Record parsing: 6-13% CPU time
-//! - Sequence decoding: <6% CPU time (NEON deferred until proven needed)
+//! Initial profiling (Phase 0, 100K records, flamegraph analysis):
+//! - BGZF decompression: 66-80% CPU time → Targeted with parallel decompression
+//! - Sequence decoding: <6% CPU time initially
+//!
+//! Post-BGZF optimization (v1.5.0, microbenchmark validation):
+//! - Sequence decoding: 30.2% CPU time (exposed after BGZF optimization)
+//! - NEON implementation: 4.62× speedup (4-8× typical for memory-bound operations)
+//! - Overall improvement: +27.5% faster BAM parsing
 //!
 //! # Optimization Rules Applied
 //!
 //! This implementation follows evidence-based rules from `OPTIMIZATION_RULES.md`:
 //!
-//! - **Rule 1** (NEON threshold): Sequence decoding <6% CPU time, below >=15% threshold for NEON optimization
-//! - **Rule 3** (Parallel BGZF): Phase 2 will add 6.5x speedup via parallel decompression
+//! - **Rule 1** (ARM NEON SIMD): Sequence decoding validated at 30.2% CPU time (v1.5.0)
+//!   - Memory-bound operation: 4.62× speedup (vs 16-25× for compute-bound)
+//!   - Uses `vqtbl1q_u8` for 16-entry vector table lookup
+//! - **Rule 3** (Parallel BGZF): 6.5× speedup via 8-block parallel decompression
 //! - **Rule 5** (Streaming): Iterator-based design maintains ~5 MB constant memory footprint
 //!
-//! See: `experiments/native-bam-implementation/DECISION_REVISED.md` for Phase 0 profiling details
+//! See: `experiments/bam-simd-sequence-decoding/FINDINGS.md` for v1.5.0 NEON validation
 //!
-//! # Phase 1 Status
+//! # Production Status (v1.5.0)
 //!
-//! Currently implements:
-//! -  Header parsing (magic bytes, SAM text, references)
-//! -  Record parsing (all fields: position, MAPQ, FLAGS, sequence, quality, CIGAR)
-//! -  4-bit sequence decoding (scalar, NEON deferred)
-//! -  CIGAR parsing (all 9 operation types)
-//! -  Tags (raw bytes, full parsing in Phase 6)
-//! -  Streaming iterator interface
-//!
-//! Phase 2 will add:
-//! - Parallel BGZF decompression (THE BIG WIN: 6.5� � ~4-5� overall)
-//! - Integration with biometal compression module
-//! - Benchmarking vs noodles
+//! Complete implementation:
+//! - ✅ Header parsing (magic bytes, SAM text, references)
+//! - ✅ Record parsing (all fields: position, MAPQ, FLAGS, sequence, quality, CIGAR)
+//! - ✅ ARM NEON sequence decoding (4.62× faster, v1.5.0)
+//! - ✅ CIGAR parsing (all 9 operation types)
+//! - ✅ Tag parsing (typed values, convenience accessors v1.4.0)
+//! - ✅ Parallel BGZF decompression (6.5× speedup)
+//! - ✅ Streaming iterator interface
+//! - ✅ Python bindings (v1.3.0+)
 //!
 //! # Example
 //!

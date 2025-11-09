@@ -1,6 +1,6 @@
 [package]
 name = "biometal"
-version = "1.4.0"
+version = "1.5.0"
 edition = "2021"
 authors = ["Scott Handley <handley.scott@gmail.com>"]
 description = "ARM-native bioinformatics library with streaming architecture and evidence-based optimization"
@@ -95,6 +95,10 @@ required-features = ["simd"]
 
 [[bench]]
 name = "bam_parsing"
+harness = false
+
+[[bench]]
+name = "sequence_decode"
 harness = false
 
 [profile.release]

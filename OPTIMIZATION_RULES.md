@@ -16,25 +16,49 @@ These optimization rules are derived from comprehensive experimental validation 
 
 ---
 
-## Rule 1: Use ARM NEON SIMD (16-25× speedup)
+## Rule 1: Use ARM NEON SIMD (4-25× speedup)
 
 ### When to Apply
 
-Operations with **element-wise processing** patterns:
+Operations with **element-wise processing** patterns and **≥15% CPU time**
+
+### Expected Speedup (Refined November 2025)
+
+**Compute-Bound Operations** (16-25× speedup):
 - Base counting: 16.7× speedup
 - GC content calculation: 20.3× speedup
 - Quality filtering: 25.1× speedup
 - Sequence complexity: 18.2× speedup
 
+**Memory-Bound Operations** (4-8× speedup):
+- BAM sequence decoding (4-bit → ASCII): 4.62× speedup
+- Quality score decoding (byte + offset): 4-8× speedup (predicted)
+- Operations with heavy read/write memory access
+
+**Memory+Allocation Bound** (3-5× speedup):
+- Frequent small allocations per-element
+- Memory allocation overhead dominates
+
 ### Evidence
 
-**Source**: [Lab Notebook Entry 020-025](lab-notebook/2025-11/) (DAG Framework Validation)
+**Compute-Bound Evidence**:
+- **Source**: [Lab Notebook Entry 020-025](lab-notebook/2025-11/) (DAG Framework Validation)
 - **Experiments**: 307 total (9,210 measurements)
 - **Statistical rigor**: 95% CI, Cohen's d effect sizes (very large, d > 3.0)
 - **Cross-platform**: Mac M4 Max, AWS Graviton 3
 - **Findings**: `results/dag_statistical/PHASE4_STATISTICAL_ANALYSIS_REPORT.md`
 
-**Effectiveness Predictor**: Operations with complexity score 0.30-0.40 (element-wise)
+**Memory-Bound Evidence**:
+- **Source**: BAM SIMD Sequence Decoding Experiment (November 9, 2025)
+- **Finding**: 4.62× NEON speedup (not 16-25×)
+- **Explanation**: Memory allocation (20-30% of time) + heavy memory access patterns
+- **Overall impact**: +27.5% faster BAM parsing (5.5× the ≥5% target)
+- **Documentation**: `experiments/bam-simd-sequence-decoding/FINDINGS.md`
+
+**Effectiveness Predictor**:
+- Element-wise operations (complexity 0.30-0.40)
+- CPU time ≥15% (Rule 1 threshold)
+- Adjust expectations based on memory access pattern
 
 ### Implementation Pattern
 

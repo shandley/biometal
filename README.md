@@ -37,7 +37,7 @@ Stream data directly from networks and analyze terabyte-scale datasets on consum
 **Rust:**
 ```toml
 [dependencies]
-biometal = "1.4"
+biometal = "1.5"
 ```
 
 **Python:**
@@ -131,14 +131,15 @@ Learn biometal through hands-on Jupyter notebooks (5 complete, ~2.5 hours):
 - **Core operations**: GC content, base counting, quality scores
 - **K-mer operations**: Extraction, minimizers, spectrum (v1.1.0)
 - **QC operations**: Trimming, filtering, masking (v1.2.0)
-- **BAM/SAM parser**: Production-ready with 4× speedup via parallel BGZF
-  - 4.4 million records/sec throughput
-  - 43.0 MiB/s compressed file processing
+- **BAM/SAM parser**: Production-ready with 5× speedup via parallel BGZF + NEON
+  - 5.82 million records/sec throughput
+  - 55.1 MiB/s compressed file processing (+27.5% from NEON in v1.5.0)
   - Constant ~5 MB memory (streams terabyte-scale alignments)
   - **Python bindings (v1.3.0)**: CIGAR operations, SAM writing, alignment metrics
   - **Production polish (v1.4.0)**: Tag convenience methods, statistics functions
     - 6 tag accessors: `edit_distance()`, `alignment_score()`, `read_group()`, etc.
     - 4 statistics functions: `insert_size_distribution()`, `edit_distance_stats()`, `strand_bias()`, `alignment_length_distribution()`
+  - **NEON optimization (v1.5.0)**: ARM SIMD sequence decoding (4.62× faster)
 - **50+ Python functions** for bioinformatics workflows
 
 ---
@@ -150,7 +151,7 @@ Learn biometal through hands-on Jupyter notebooks (5 complete, ~2.5 hours):
 | Base counting | 315 Kseq/s | 5,254 Kseq/s | **16.7× (NEON)** |
 | GC content | 294 Kseq/s | 5,954 Kseq/s | **20.3× (NEON)** |
 | Quality filter | 245 Kseq/s | 6,143 Kseq/s | **25.1× (NEON)** |
-| **BAM parsing** | **~11 MiB/s** | **43.0 MiB/s** | **4.0× (Parallel BGZF)** |
+| **BAM parsing** | **~11 MiB/s** | **55.1 MiB/s** | **5.0× (BGZF + NEON v1.5.0)** |
 
 | Dataset Size | Traditional | biometal | Reduction |
 |--------------|-------------|----------|-----------|
@@ -190,6 +191,8 @@ biometal's design is grounded in comprehensive experimental validation:
 **v1.2.0** (Released Nov 6, 2025) ✅ - Python bindings for Phase 4 QC
 **BAM/SAM** (Integrated Nov 8, 2025) ✅ - Native streaming alignment parser with parallel BGZF (4× speedup)
 **v1.3.0** (Released Nov 9, 2025) ✅ - Python BAM bindings with CIGAR operations and SAM writing
+**v1.4.0** (Released Nov 9, 2025) ✅ - BAM tag convenience methods and statistics functions
+**v1.5.0** (Released Nov 9, 2025) ✅ - ARM NEON sequence decoding (+27.5% BAM parsing speedup)
 
 **Next** (Planned):
 - BAI/CSI index support (random access to BAM files)
@@ -384,10 +387,10 @@ For the experimental methodology:
 ---
 
 <p align="center">
-<strong>Status:</strong> v1.3.0 released 🚀<br>
-<strong>Latest:</strong> Python BAM bindings with CIGAR operations and SAM writing (Nov 9, 2025)<br>
+<strong>Status:</strong> v1.5.0 released 🚀<br>
+<strong>Latest:</strong> ARM NEON sequence decoding (+27.5% BAM parsing speedup) (Nov 9, 2025)<br>
 <strong>Tests:</strong> 545 passing (354 library + 70 BAM + 121 doc)<br>
-<strong>Performance:</strong> 4.54M records/sec, 43.0 MiB/s throughput<br>
+<strong>Performance:</strong> 5.82M records/sec, 55.1 MiB/s throughput<br>
 <strong>Python Functions:</strong> 50+ (including full BAM support)<br>
 <strong>Evidence Base:</strong> 1,357 experiments, 40,710 measurements
 </p>
