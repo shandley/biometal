@@ -561,6 +561,291 @@ def test_cigar_based_coverage(bam_reader):
 
 
 # ============================================================================
+# Tag convenience methods (v1.4.0+)
+# ============================================================================
+
+def test_get_int(bam_reader):
+    """Test get_int() convenience method"""
+    for record in bam_reader:
+        # Try to get edit distance (NM tag)
+        nm = record.get_int("NM")
+
+        # If NM exists, verify it matches get_tag()
+        if nm is not None:
+            tag = record.get_tag("NM")
+            assert tag is not None
+            assert tag.value.is_int()
+            assert tag.value.as_int() == nm
+            assert nm >= 0  # Edit distance should be non-negative
+            break
+
+
+def test_get_string(bam_reader):
+    """Test get_string() convenience method"""
+    for record in bam_reader:
+        # Try to get MD string
+        md = record.get_string("MD")
+
+        # If MD exists, verify it matches get_tag()
+        if md is not None:
+            tag = record.get_tag("MD")
+            assert tag is not None
+            assert tag.value.is_string()
+            assert tag.value.as_string() == md
+            assert len(md) > 0  # MD string should not be empty
+            break
+
+    # Test with read group (RG) as well
+    for record in bam_reader:
+        rg = record.get_string("RG")
+        if rg is not None:
+            assert isinstance(rg, str)
+            assert len(rg) > 0
+            break
+
+
+def test_get_int_invalid_name(bam_reader):
+    """Test get_int() with invalid tag name"""
+    for record in bam_reader:
+        # Too short
+        with pytest.raises(ValueError, match="exactly 2 characters"):
+            record.get_int("N")
+
+        # Too long
+        with pytest.raises(ValueError, match="exactly 2 characters"):
+            record.get_int("NMX")
+
+        break
+
+
+def test_get_string_invalid_name(bam_reader):
+    """Test get_string() with invalid tag name"""
+    for record in bam_reader:
+        # Too short
+        with pytest.raises(ValueError, match="exactly 2 characters"):
+            record.get_string("M")
+
+        # Too long
+        with pytest.raises(ValueError, match="exactly 2 characters"):
+            record.get_string("MDZ")
+
+        break
+
+
+def test_edit_distance(bam_reader):
+    """Test edit_distance() convenience method"""
+    found_nm = False
+
+    for record in bam_reader:
+        edit_dist = record.edit_distance()
+
+        if edit_dist is not None:
+            found_nm = True
+            # Should match get_int("NM")
+            assert edit_dist == record.get_int("NM")
+            assert edit_dist >= 0
+
+            # Should be <= read length (can't have more mismatches than bases)
+            assert edit_dist <= len(record.sequence)
+
+        if found_nm:
+            break
+
+    # Note: NM tag is optional, so finding it is best-effort
+
+
+def test_alignment_score(bam_reader):
+    """Test alignment_score() convenience method"""
+    found_as = False
+
+    for record in bam_reader:
+        score = record.alignment_score()
+
+        if score is not None:
+            found_as = True
+            # Should match get_int("AS")
+            assert score == record.get_int("AS")
+            # Alignment score can be negative for poor alignments
+            assert isinstance(score, int)
+
+        if found_as:
+            break
+
+    # Note: AS tag is optional, so finding it is best-effort
+
+
+def test_read_group(bam_reader):
+    """Test read_group() convenience method"""
+    found_rg = False
+
+    for record in bam_reader:
+        rg = record.read_group()
+
+        if rg is not None:
+            found_rg = True
+            # Should match get_string("RG")
+            assert rg == record.get_string("RG")
+            assert isinstance(rg, str)
+            assert len(rg) > 0
+
+        if found_rg:
+            break
+
+    # Note: RG tag is optional, so finding it is best-effort
+
+
+def test_md_string(bam_reader):
+    """Test md_string() convenience method"""
+    found_md = False
+
+    for record in bam_reader:
+        md = record.md_string()
+
+        if md is not None:
+            found_md = True
+            # Should match get_string("MD")
+            assert md == record.get_string("MD")
+            assert isinstance(md, str)
+            assert len(md) > 0
+            # MD string should contain digits and/or letters
+            assert any(c.isalnum() for c in md)
+
+        if found_md:
+            break
+
+    # Note: MD tag is optional, so finding it is best-effort
+
+
+# ============================================================================
+# Statistics functions (v1.4.0+)
+# ============================================================================
+
+def test_insert_size_distribution(bam_path):
+    """Test insert_size_distribution() for paired-end QC"""
+    dist = biometal.insert_size_distribution(bam_path)
+
+    assert isinstance(dist, dict)
+
+    # If we have insert sizes, verify properties
+    if dist:
+        # All keys should be positive integers
+        for insert_size, count in dist.items():
+            assert isinstance(insert_size, int)
+            assert insert_size > 0
+            assert isinstance(count, int)
+            assert count > 0
+
+        # Typical insert sizes are 100-1000bp for most libraries
+        sizes = list(dist.keys())
+        assert min(sizes) >= 0
+        assert max(sizes) <= 100000  # Sanity check
+
+
+def test_insert_size_distribution_filtered(bam_path):
+    """Test insert_size_distribution() with reference filter"""
+    # Test with reference 0
+    dist_ref0 = biometal.insert_size_distribution(bam_path, reference_id=0)
+    assert isinstance(dist_ref0, dict)
+
+    # Test with all references
+    dist_all = biometal.insert_size_distribution(bam_path)
+
+    # Reference-filtered should be subset of all
+    if dist_ref0 and dist_all:
+        assert sum(dist_ref0.values()) <= sum(dist_all.values())
+
+
+def test_edit_distance_stats(bam_path):
+    """Test edit_distance_stats() for alignment quality"""
+    stats = biometal.edit_distance_stats(bam_path)
+
+    assert isinstance(stats, dict)
+    assert 'total_records' in stats
+    assert 'with_nm_tag' in stats
+    assert 'mean' in stats
+    assert 'median' in stats
+    assert 'min' in stats
+    assert 'max' in stats
+    assert 'distribution' in stats
+
+    assert stats['total_records'] >= 0
+    assert stats['with_nm_tag'] >= 0
+    assert stats['with_nm_tag'] <= stats['total_records']
+
+    # If we have NM tags, verify statistics
+    if stats['with_nm_tag'] > 0:
+        assert stats['mean'] is not None
+        assert stats['median'] is not None
+        assert stats['min'] is not None
+        assert stats['max'] is not None
+        assert isinstance(stats['distribution'], dict)
+
+        # Mean should be reasonable
+        assert stats['mean'] >= 0
+        assert stats['min'] <= stats['median'] <= stats['max']
+
+        # Distribution should match count
+        assert sum(stats['distribution'].values()) == stats['with_nm_tag']
+
+
+def test_strand_bias(bam_path):
+    """Test strand_bias() for variant calling QC"""
+    # Test at position 1000 on reference 0
+    bias = biometal.strand_bias(bam_path, reference_id=0, position=1000, window_size=100)
+
+    assert isinstance(bias, dict)
+    assert 'forward' in bias
+    assert 'reverse' in bias
+    assert 'total' in bias
+    assert 'ratio' in bias
+
+    assert bias['forward'] >= 0
+    assert bias['reverse'] >= 0
+    assert bias['total'] == bias['forward'] + bias['reverse']
+
+    # Ratio should be 0-1
+    assert 0.0 <= bias['ratio'] <= 1.0
+
+    # If we have reads, ratio should match calculation
+    if bias['total'] > 0:
+        expected_ratio = bias['forward'] / bias['total']
+        assert abs(bias['ratio'] - expected_ratio) < 0.001
+
+
+def test_alignment_length_distribution(bam_path):
+    """Test alignment_length_distribution() for RNA-seq QC"""
+    dist = biometal.alignment_length_distribution(bam_path)
+
+    assert isinstance(dist, dict)
+
+    # If we have alignments, verify properties
+    if dist:
+        # All keys and values should be positive
+        for length, count in dist.items():
+            assert isinstance(length, int)
+            assert length > 0
+            assert isinstance(count, int)
+            assert count > 0
+
+        # Typical alignment lengths are 50-500bp
+        lengths = list(dist.keys())
+        assert min(lengths) > 0
+        assert max(lengths) <= 100000  # Sanity check
+
+
+def test_statistics_empty_filters(bam_path):
+    """Test statistics functions with filters that return no records"""
+    # Test with non-existent reference ID (likely doesn't exist)
+    dist = biometal.insert_size_distribution(bam_path, reference_id=9999)
+    assert isinstance(dist, dict)
+    # May be empty or have records depending on BAM file
+
+    stats = biometal.edit_distance_stats(bam_path, reference_id=9999)
+    assert isinstance(stats, dict)
+    assert stats['total_records'] >= 0
+
+
+# ============================================================================
 # Run tests
 # ============================================================================
 

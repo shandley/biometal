@@ -105,6 +105,10 @@ fn biometal(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(calculate_coverage, m)?)?;
     m.add_function(wrap_pyfunction!(mapq_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(count_by_flag, m)?)?;
+    m.add_function(wrap_pyfunction!(insert_size_distribution, m)?)?;
+    m.add_function(wrap_pyfunction!(edit_distance_stats, m)?)?;
+    m.add_function(wrap_pyfunction!(strand_bias, m)?)?;
+    m.add_function(wrap_pyfunction!(alignment_length_distribution, m)?)?;
 
     // Module metadata
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;

@@ -22,6 +22,11 @@ New in v1.3.0:
 - CIGAR operations (alignment details)
 - SAM writing (BAM → SAM conversion)
 - CIGAR-aware coverage calculation
+
+New in v1.4.0:
+- Tag convenience methods (edit_distance, alignment_score, read_group, md_string)
+- get_int/get_string accessors for direct tag value access
+- Tag analysis functions (edit distance distribution, read group filtering)
 """
 
 import biometal
@@ -828,6 +833,189 @@ def mapq_distribution(
 
 
 # ============================================================================
+# Tag Analysis Functions (v1.4.0+)
+# ============================================================================
+
+def analyze_edit_distance(
+    bam_path: str,
+    reference_id: Optional[int] = None,
+    limit: Optional[int] = None
+) -> Dict[str, any]:
+    """
+    Analyze edit distance (NM tag) distribution for alignment quality assessment.
+
+    Args:
+        bam_path: Path to BAM file
+        reference_id: Optional reference ID to filter by
+        limit: Optional limit on number of records to analyze
+
+    Returns:
+        Dictionary containing:
+        - distribution: Dict[int, int] mapping edit distance → count
+        - mean: Average edit distance
+        - median: Median edit distance
+        - max: Maximum edit distance observed
+        - with_nm_tag: Number of records with NM tag
+        - total_records: Total records analyzed
+
+    Example:
+        >>> stats = analyze_edit_distance("alignments.bam", limit=100000)
+        >>> print(f"Mean edit distance: {stats['mean']:.2f}")
+        >>> print(f"Records with NM tag: {stats['with_nm_tag']:,} / {stats['total_records']:,}")
+    """
+    reader = biometal.BamReader.from_path(bam_path)
+    distribution = defaultdict(int)
+    edit_distances = []
+    count = 0
+    with_nm = 0
+
+    for record in reader:
+        # Filter by reference if specified
+        if reference_id is not None and record.reference_id != reference_id:
+            continue
+
+        # Get edit distance using convenience method
+        edit_dist = record.edit_distance()
+
+        if edit_dist is not None:
+            distribution[edit_dist] += 1
+            edit_distances.append(edit_dist)
+            with_nm += 1
+
+        count += 1
+
+        if limit is not None and count >= limit:
+            break
+
+    # Calculate statistics
+    stats = {
+        "distribution": dict(distribution),
+        "with_nm_tag": with_nm,
+        "total_records": count,
+    }
+
+    if edit_distances:
+        edit_distances.sort()
+        stats["mean"] = sum(edit_distances) / len(edit_distances)
+        stats["median"] = edit_distances[len(edit_distances) // 2]
+        stats["max"] = max(edit_distances)
+        stats["min"] = min(edit_distances)
+    else:
+        stats["mean"] = None
+        stats["median"] = None
+        stats["max"] = None
+        stats["min"] = None
+
+    return stats
+
+
+def filter_by_read_group(
+    bam_path: str,
+    read_groups: List[str],
+    output_path: Optional[str] = None
+) -> Iterator[biometal.BamRecord]:
+    """
+    Filter BAM records by read group (RG tag).
+
+    Useful for:
+    - Sample-specific analysis in multiplexed sequencing
+    - Lane-specific QC
+    - Flowcell-specific filtering
+
+    Args:
+        bam_path: Path to BAM file
+        read_groups: List of read group IDs to include
+        output_path: Optional output SAM path for filtered records
+
+    Yields:
+        BamRecord: Records matching specified read groups
+
+    Example:
+        >>> # Filter records from specific read groups
+        >>> for record in filter_by_read_group("alignments.bam", ["RG001", "RG002"]):
+        ...     print(f"{record.name}: RG={record.read_group()}")
+        >>>
+        >>> # Export filtered records to SAM
+        >>> count = 0
+        >>> for record in filter_by_read_group("alignments.bam", ["RG001"], "filtered.sam"):
+        ...     count += 1
+        >>> print(f"Exported {count:,} records")
+    """
+    reader = biometal.BamReader.from_path(bam_path)
+    writer = None
+
+    if output_path:
+        writer = biometal.SamWriter.create(output_path)
+        writer.write_header(reader.header)
+
+    read_group_set = set(read_groups)
+
+    for record in reader:
+        rg = record.read_group()
+
+        if rg in read_group_set:
+            if writer:
+                writer.write_record(record)
+            yield record
+
+    if writer:
+        writer.close()
+
+
+def analyze_tag_coverage(
+    bam_path: str,
+    tag_names: List[str],
+    limit: Optional[int] = None
+) -> Dict[str, Dict[str, any]]:
+    """
+    Analyze coverage of optional tags across BAM records.
+
+    Useful for:
+    - Understanding which tags are present in your BAM files
+    - Quality control for alignment pipelines
+    - Debugging missing tag issues
+
+    Args:
+        bam_path: Path to BAM file
+        tag_names: List of 2-character tag names to analyze (e.g., ["NM", "AS", "RG"])
+        limit: Optional limit on number of records to analyze
+
+    Returns:
+        Dictionary mapping tag name → statistics:
+        - present: Number of records with this tag
+        - missing: Number of records without this tag
+        - coverage: Percentage of records with this tag
+
+    Example:
+        >>> stats = analyze_tag_coverage("alignments.bam", ["NM", "AS", "RG", "MD"])
+        >>> for tag, info in stats.items():
+        ...     print(f"{tag}: {info['coverage']:.1f}% coverage ({info['present']:,} / {info['present'] + info['missing']:,})")
+    """
+    reader = biometal.BamReader.from_path(bam_path)
+    stats = {tag: {"present": 0, "missing": 0} for tag in tag_names}
+    count = 0
+
+    for record in reader:
+        for tag in tag_names:
+            if record.has_tag(tag):
+                stats[tag]["present"] += 1
+            else:
+                stats[tag]["missing"] += 1
+
+        count += 1
+
+        if limit is not None and count >= limit:
+            break
+
+    # Calculate coverage percentages
+    for tag in tag_names:
+        total = stats[tag]["present"] + stats[tag]["missing"]
+        stats[tag]["coverage"] = (stats[tag]["present"] / total * 100) if total > 0 else 0.0
+
+    return stats
+
+
+# ============================================================================
 # Example Usage
 # ============================================================================
 
@@ -911,12 +1099,96 @@ def main():
     print(f"   Wrote {sam_count:,} alignments to {sam_path}")
     print()
 
+    # Example 9: Edit distance analysis (v1.4.0)
+    print("9. Edit Distance Analysis (first 10K records):")
+    ed_stats = analyze_edit_distance(bam_path, limit=10000)
+    if ed_stats['mean'] is not None:
+        print(f"   Records with NM tag: {ed_stats['with_nm_tag']:,} / {ed_stats['total_records']:,}")
+        print(f"   Mean edit distance: {ed_stats['mean']:.2f}")
+        print(f"   Median edit distance: {ed_stats['median']}")
+        print(f"   Range: {ed_stats['min']} - {ed_stats['max']}")
+    else:
+        print("   No NM tags found")
+    print()
+
+    # Example 10: Tag coverage analysis (v1.4.0)
+    print("10. Tag Coverage Analysis (first 10K records):")
+    tag_stats = analyze_tag_coverage(bam_path, ["NM", "AS", "RG", "MD"], limit=10000)
+    for tag, info in sorted(tag_stats.items()):
+        print(f"    {tag}: {info['coverage']:.1f}% ({info['present']:,} / {info['present'] + info['missing']:,})")
+    print()
+
+    # Example 11: Insert size distribution (v1.4.0)
+    print("11. Insert Size Distribution (paired-end QC, first 1K records):")
+    insert_dist = biometal.insert_size_distribution(bam_path)
+    if insert_dist:
+        sizes = list(insert_dist.keys())
+        total_pairs = sum(insert_dist.values())
+        mean_insert = sum(s * insert_dist[s] for s in sizes) / total_pairs
+        print(f"    Total pairs: {total_pairs:,}")
+        print(f"    Mean insert size: {mean_insert:.0f}bp")
+        print(f"    Range: {min(sizes)}-{max(sizes)}bp")
+        # Show most common sizes
+        top_sizes = sorted(insert_dist.items(), key=lambda x: x[1], reverse=True)[:5]
+        for size, count in top_sizes:
+            print(f"    {size}bp: {count:,} pairs")
+    else:
+        print("    No properly paired reads found")
+    print()
+
+    # Example 12: Edit distance statistics (v1.4.0)
+    print("12. Edit Distance Statistics (alignment quality):")
+    ed_stats = biometal.edit_distance_stats(bam_path)
+    print(f"    Total records: {ed_stats['total_records']:,}")
+    print(f"    With NM tag: {ed_stats['with_nm_tag']:,} ({ed_stats['with_nm_tag']/ed_stats['total_records']*100:.1f}%)")
+    if ed_stats['mean'] is not None:
+        print(f"    Mean edit distance: {ed_stats['mean']:.2f}")
+        print(f"    Median: {ed_stats['median']}")
+        print(f"    Range: {ed_stats['min']}-{ed_stats['max']}")
+    print()
+
+    # Example 13: Strand bias analysis (v1.4.0)
+    print("13. Strand Bias Analysis (variant QC at chr0:1000):")
+    bias = biometal.strand_bias(bam_path, reference_id=0, position=1000, window_size=100)
+    print(f"    Forward strand: {bias['forward']:,} reads")
+    print(f"    Reverse strand: {bias['reverse']:,} reads")
+    print(f"    Total: {bias['total']:,} reads")
+    if bias['total'] > 0:
+        print(f"    Strand ratio: {bias['ratio']:.3f} (0.5 = no bias)")
+        if abs(bias['ratio'] - 0.5) > 0.2:
+            print(f"    ⚠️  Warning: Potential strand bias detected")
+    print()
+
+    # Example 14: Alignment length distribution (v1.4.0)
+    print("14. Alignment Length Distribution (RNA-seq QC):")
+    len_dist = biometal.alignment_length_distribution(bam_path)
+    if len_dist:
+        lengths = list(len_dist.keys())
+        total_alns = sum(len_dist.values())
+        mean_len = sum(l * len_dist[l] for l in lengths) / total_alns
+        print(f"    Total alignments: {total_alns:,}")
+        print(f"    Mean length: {mean_len:.0f}bp")
+        print(f"    Range: {min(lengths)}-{max(lengths)}bp")
+        # Show most common lengths
+        top_lens = sorted(len_dist.items(), key=lambda x: x[1], reverse=True)[:5]
+        for length, count in top_lens:
+            print(f"    {length}bp: {count:,} alignments")
+    else:
+        print("    No mapped reads found")
+    print()
+
     print(f"{'=' * 60}")
     print("✅ Analysis complete")
     print(f"\n💡 New in v1.3.0:")
     print(f"   - CIGAR operations for detailed alignment analysis")
     print(f"   - SAM writing for format conversion and region extraction")
     print(f"   - CIGAR-aware coverage calculation")
+    print(f"\n💡 New in v1.4.0:")
+    print(f"   - Tag convenience methods (edit_distance, alignment_score, etc.)")
+    print(f"   - Insert size distribution for paired-end QC")
+    print(f"   - Edit distance statistics for alignment quality")
+    print(f"   - Strand bias analysis for variant calling")
+    print(f"   - Alignment length distribution for RNA-seq")
     print(f"\n💡 Tip: Modify criteria objects to customize filters")
     print(f"   Performance: 4.54M records/sec, constant ~5 MB memory")
 

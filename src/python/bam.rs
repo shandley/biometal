@@ -12,6 +12,7 @@
 //! - Performance: 4× overall speedup (experiments/native-bam-implementation/PHASE_3_BENCHMARKS.md)
 
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use pyo3::exceptions::PyStopIteration;
 use std::path::PathBuf;
 use std::collections::HashMap;
@@ -766,6 +767,137 @@ impl PyBamRecord {
         }
 
         Ok(result)
+    }
+
+    /// Get an integer tag value
+    ///
+    /// Convenience method that returns the integer value directly if the tag exists and is an integer.
+    ///
+    /// Args:
+    ///     name (str): Two-character tag name
+    ///
+    /// Returns:
+    ///     int | None: Integer value if found, None otherwise
+    ///
+    /// Example:
+    ///     >>> edit_distance = record.get_int("NM")
+    ///     >>> if edit_distance is not None:
+    ///     ...     print(f"Edit distance: {edit_distance}")
+    fn get_int(&self, name: &str) -> PyResult<Option<i64>> {
+        if name.len() != 2 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Tag name must be exactly 2 characters"
+            ));
+        }
+
+        let name_bytes: [u8; 2] = [name.as_bytes()[0], name.as_bytes()[1]];
+
+        match self.tags.get(&name_bytes) {
+            Ok(Some(tag)) => match tag.value {
+                TagValue::Int(i) => Ok(Some(i)),
+                _ => Ok(None),
+            },
+            Ok(None) => Ok(None),
+            Err(e) => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Error parsing tag: {}", e)
+            )),
+        }
+    }
+
+    /// Get a string tag value
+    ///
+    /// Convenience method that returns the string value directly if the tag exists and is a string.
+    ///
+    /// Args:
+    ///     name (str): Two-character tag name
+    ///
+    /// Returns:
+    ///     str | None: String value if found, None otherwise
+    ///
+    /// Example:
+    ///     >>> read_group = record.get_string("RG")
+    ///     >>> if read_group:
+    ///     ...     print(f"Read group: {read_group}")
+    fn get_string(&self, name: &str) -> PyResult<Option<String>> {
+        if name.len() != 2 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Tag name must be exactly 2 characters"
+            ));
+        }
+
+        let name_bytes: [u8; 2] = [name.as_bytes()[0], name.as_bytes()[1]];
+
+        match self.tags.get(&name_bytes) {
+            Ok(Some(tag)) => match tag.value {
+                TagValue::String(s) => Ok(Some(s)),
+                TagValue::Hex(h) => Ok(Some(h)),
+                _ => Ok(None),
+            },
+            Ok(None) => Ok(None),
+            Err(e) => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Error parsing tag: {}", e)
+            )),
+        }
+    }
+
+    /// Get edit distance (NM tag)
+    ///
+    /// Returns the number of mismatches in the alignment (NM:i tag).
+    ///
+    /// Returns:
+    ///     int | None: Edit distance if available
+    ///
+    /// Example:
+    ///     >>> edit_dist = record.edit_distance()
+    ///     >>> if edit_dist is not None:
+    ///     ...     print(f"Mismatches: {edit_dist}")
+    fn edit_distance(&self) -> PyResult<Option<i64>> {
+        self.get_int("NM")
+    }
+
+    /// Get alignment score (AS tag)
+    ///
+    /// Returns the aligner's alignment score (AS:i tag).
+    ///
+    /// Returns:
+    ///     int | None: Alignment score if available
+    ///
+    /// Example:
+    ///     >>> score = record.alignment_score()
+    ///     >>> if score and score >= 100:
+    ///     ...     print("High quality alignment")
+    fn alignment_score(&self) -> PyResult<Option<i64>> {
+        self.get_int("AS")
+    }
+
+    /// Get read group (RG tag)
+    ///
+    /// Returns the read group identifier (RG:Z tag).
+    ///
+    /// Returns:
+    ///     str | None: Read group ID if available
+    ///
+    /// Example:
+    ///     >>> rg = record.read_group()
+    ///     >>> if rg:
+    ///     ...     print(f"Read group: {rg}")
+    fn read_group(&self) -> PyResult<Option<String>> {
+        self.get_string("RG")
+    }
+
+    /// Get MD string (MD tag)
+    ///
+    /// Returns the mismatch/deletion string (MD:Z tag) used for variant calling.
+    ///
+    /// Returns:
+    ///     str | None: MD string if available
+    ///
+    /// Example:
+    ///     >>> md = record.md_string()
+    ///     >>> if md:
+    ///     ...     print(f"MD: {md}")
+    fn md_string(&self) -> PyResult<Option<String>> {
+        self.get_string("MD")
     }
 
     fn __repr__(&self) -> String {
@@ -1569,4 +1701,321 @@ pub fn count_by_flag(_py: Python, path: String) -> PyResult<HashMap<String, u32>
     }
 
     Ok(counts)
+}
+
+/// Calculate insert size distribution for paired-end QC
+///
+/// Analyzes template length distribution for properly paired reads on the same reference.
+/// Essential for paired-end sequencing QC.
+///
+/// Args:
+///     path (str): Path to BAM file
+///     reference_id (int | None): Optional reference ID to filter by
+///
+/// Returns:
+///     dict[int, int]: Mapping from insert size to count
+///
+/// Example:
+///     >>> insert_dist = biometal.insert_size_distribution("alignments.bam")
+///     >>> sizes = list(insert_dist.keys())
+///     >>> mean_size = sum(s * insert_dist[s] for s in sizes) / sum(insert_dist.values())
+///     >>> print(f"Mean insert size: {mean_size:.0f}bp")
+///
+/// Note:
+///     Only includes primary, properly paired reads on the same reference with positive insert size
+#[pyfunction]
+#[pyo3(signature = (path, reference_id=None))]
+pub fn insert_size_distribution(
+    _py: Python,
+    path: String,
+    reference_id: Option<usize>,
+) -> PyResult<HashMap<i32, u32>> {
+    let path_buf = PathBuf::from(path);
+    let reader = BamReader::from_path(&path_buf)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+    let mut distribution: HashMap<i32, u32> = HashMap::new();
+
+    let mut reader = reader;
+    while let Ok(Some(record)) = reader.read_record() {
+        // Filter by reference if specified
+        if let Some(ref_id) = reference_id {
+            if record.reference_id != Some(ref_id) {
+                continue;
+            }
+        }
+
+        // Only count properly paired reads
+        let flags = record.flags;
+        let is_paired = (flags & 0x1) != 0;
+        let is_proper_pair = (flags & 0x2) != 0;
+        let is_primary = (flags & 0x900) == 0;
+
+        if is_paired && is_proper_pair && is_primary {
+            // Check same reference
+            if record.reference_id == record.mate_reference_id {
+                let insert_size = record.template_length.abs();
+                if insert_size > 0 {
+                    *distribution.entry(insert_size).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+
+    Ok(distribution)
+}
+
+/// Calculate edit distance statistics for alignment quality assessment
+///
+/// Analyzes NM tag (edit distance) distribution across mapped reads.
+///
+/// Args:
+///     path (str): Path to BAM file
+///     reference_id (int | None): Optional reference ID to filter by
+///
+/// Returns:
+///     dict: Statistics including:
+///         - mean (float | None): Mean edit distance
+///         - median (int | None): Median edit distance
+///         - max (int | None): Maximum edit distance
+///         - min (int | None): Minimum edit distance
+///         - distribution (dict[int, int]): Edit distance → count
+///         - with_nm_tag (int): Number of records with NM tag
+///         - total_records (int): Total records analyzed
+///
+/// Example:
+///     >>> stats = biometal.edit_distance_stats("alignments.bam")
+///     >>> print(f"Mean mismatches: {stats['mean']:.2f}")
+///     >>> print(f"Coverage: {stats['with_nm_tag'] / stats['total_records'] * 100:.1f}%")
+#[pyfunction]
+#[pyo3(signature = (path, reference_id=None))]
+pub fn edit_distance_stats(
+    py: Python,
+    path: String,
+    reference_id: Option<usize>,
+) -> PyResult<Py<PyDict>> {
+    let path_buf = PathBuf::from(path);
+    let reader = BamReader::from_path(&path_buf)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+    let mut edit_distances = Vec::new();
+    let mut distribution: HashMap<i64, u32> = HashMap::new();
+    let mut total_records = 0;
+
+    let mut reader = reader;
+    while let Ok(Some(record)) = reader.read_record() {
+        // Filter by reference if specified
+        if let Some(ref_id) = reference_id {
+            if record.reference_id != Some(ref_id) {
+                continue;
+            }
+        }
+
+        total_records += 1;
+
+        // Get NM tag (edit distance)
+        if let Ok(Some(tag)) = record.tags.get(b"NM") {
+            if let TagValue::Int(nm) = tag.value {
+                edit_distances.push(nm);
+                *distribution.entry(nm).or_insert(0) += 1;
+            }
+        }
+    }
+
+    // Build result dictionary
+    let result = PyDict::new(py);
+
+    result.set_item("total_records", total_records)?;
+    result.set_item("with_nm_tag", edit_distances.len())?;
+
+    if !edit_distances.is_empty() {
+        edit_distances.sort();
+        let sum: i64 = edit_distances.iter().sum();
+        let mean = sum as f64 / edit_distances.len() as f64;
+        let median = edit_distances[edit_distances.len() / 2];
+        let min = *edit_distances.iter().min().unwrap();
+        let max = *edit_distances.iter().max().unwrap();
+
+        result.set_item("mean", mean)?;
+        result.set_item("median", median)?;
+        result.set_item("min", min)?;
+        result.set_item("max", max)?;
+    } else {
+        result.set_item("mean", py.None())?;
+        result.set_item("median", py.None())?;
+        result.set_item("min", py.None())?;
+        result.set_item("max", py.None())?;
+    }
+
+    // Convert distribution
+    let dist_dict = PyDict::new(py);
+    for (nm, count) in distribution {
+        dist_dict.set_item(nm, count)?;
+    }
+    result.set_item("distribution", dist_dict)?;
+
+    Ok(result.into())
+}
+
+/// Calculate strand bias at a genomic position
+///
+/// Counts forward and reverse strand reads overlapping a position.
+/// Essential for variant calling QC.
+///
+/// Args:
+///     path (str): Path to BAM file
+///     reference_id (int): Reference sequence ID
+///     position (int): 0-based genomic position
+///     window_size (int): Window size around position (default: 1)
+///
+/// Returns:
+///     dict: Strand bias statistics:
+///         - forward (int): Forward strand reads
+///         - reverse (int): Reverse strand reads
+///         - total (int): Total reads
+///         - ratio (float): Forward / (Forward + Reverse), 0.5 = no bias
+///
+/// Example:
+///     >>> bias = biometal.strand_bias("alignments.bam", 0, 1000, window_size=10)
+///     >>> print(f"Strand bias: {bias['forward']} forward, {bias['reverse']} reverse")
+///     >>> print(f"Ratio: {bias['ratio']:.3f} (0.5 = no bias)")
+#[pyfunction]
+#[pyo3(signature = (path, reference_id, position, window_size=1))]
+pub fn strand_bias(
+    py: Python,
+    path: String,
+    reference_id: usize,
+    position: i32,
+    window_size: i32,
+) -> PyResult<Py<PyDict>> {
+    let path_buf = PathBuf::from(path);
+    let reader = BamReader::from_path(&path_buf)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+    let mut forward_count = 0u32;
+    let mut reverse_count = 0u32;
+
+    let start = position - window_size / 2;
+    let end = position + window_size / 2 + 1;
+
+    let mut reader = reader;
+    while let Ok(Some(record)) = reader.read_record() {
+        // Check reference
+        if record.reference_id != Some(reference_id) {
+            continue;
+        }
+
+        // Check if read overlaps position
+        if let Some(pos) = record.position {
+            // Calculate alignment end using CIGAR
+            let mut alignment_end = pos;
+            for op in &record.cigar {
+                match op {
+                    CigarOp::Match(len) |
+                    CigarOp::Deletion(len) |
+                    CigarOp::RefSkip(len) |
+                    CigarOp::SeqMatch(len) |
+                    CigarOp::SeqMismatch(len) => {
+                        alignment_end += *len as i32;
+                    }
+                    _ => {}
+                }
+            }
+
+            // Check overlap with window
+            if pos < end && alignment_end > start {
+                // Count by strand
+                let is_reverse = (record.flags & 0x10) != 0;
+                if is_reverse {
+                    reverse_count += 1;
+                } else {
+                    forward_count += 1;
+                }
+            }
+        }
+    }
+
+    // Build result
+    let result = PyDict::new(py);
+    result.set_item("forward", forward_count)?;
+    result.set_item("reverse", reverse_count)?;
+    result.set_item("total", forward_count + reverse_count)?;
+
+    let total = forward_count + reverse_count;
+    let ratio = if total > 0 {
+        forward_count as f64 / total as f64
+    } else {
+        0.0
+    };
+    result.set_item("ratio", ratio)?;
+
+    Ok(result.into())
+}
+
+/// Calculate alignment length distribution
+///
+/// Analyzes reference span (CIGAR-based) for mapped alignments.
+/// Useful for RNA-seq, assembly QC, and structural variant detection.
+///
+/// Args:
+///     path (str): Path to BAM file
+///     reference_id (int | None): Optional reference ID to filter by
+///
+/// Returns:
+///     dict[int, int]: Mapping from alignment length to count
+///
+/// Example:
+///     >>> dist = biometal.alignment_length_distribution("alignments.bam")
+///     >>> lengths = list(dist.keys())
+///     >>> mean_len = sum(l * dist[l] for l in lengths) / sum(dist.values())
+///     >>> print(f"Mean alignment length: {mean_len:.0f}bp")
+#[pyfunction]
+#[pyo3(signature = (path, reference_id=None))]
+pub fn alignment_length_distribution(
+    _py: Python,
+    path: String,
+    reference_id: Option<usize>,
+) -> PyResult<HashMap<u32, u32>> {
+    let path_buf = PathBuf::from(path);
+    let reader = BamReader::from_path(&path_buf)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+    let mut distribution: HashMap<u32, u32> = HashMap::new();
+
+    let mut reader = reader;
+    while let Ok(Some(record)) = reader.read_record() {
+        // Filter by reference if specified
+        if let Some(ref_id) = reference_id {
+            if record.reference_id != Some(ref_id) {
+                continue;
+            }
+        }
+
+        // Only count mapped reads
+        let is_mapped = (record.flags & 0x4) == 0;
+        if !is_mapped {
+            continue;
+        }
+
+        // Calculate alignment length from CIGAR
+        let mut length = 0u32;
+        for op in &record.cigar {
+            match op {
+                CigarOp::Match(len) |
+                CigarOp::Deletion(len) |
+                CigarOp::RefSkip(len) |
+                CigarOp::SeqMatch(len) |
+                CigarOp::SeqMismatch(len) => {
+                    length += len;
+                }
+                _ => {}
+            }
+        }
+
+        if length > 0 {
+            *distribution.entry(length).or_insert(0) += 1;
+        }
+    }
+
+    Ok(distribution)
 }
