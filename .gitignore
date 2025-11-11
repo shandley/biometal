@@ -24,3 +24,7 @@ datasets/
 bench_results/
 .venv/
 proptest-regressions/
+
+# External dependencies (to prevent nested git repos)
+experiments/*/external/
+**/external/*/.git/
