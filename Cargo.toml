@@ -51,7 +51,7 @@ exclude = [
 
 [dependencies]
 # Core I/O and compression
-flate2 = "1.0"          # Gzip/bgzip decompression
+flate2 = { version = "1.0", features = ["zlib-ng"], default-features = false }  # Gzip/bgzip with zlib-ng backend (Phase 1 investigation)
 memmap2 = "0.9"         # Memory-mapped I/O (Rule 4)
 crc32fast = "1.4"       # Fast CRC32 for BGZF format
 
@@ -156,6 +156,10 @@ harness = false
 
 [[bench]]
 name = "rule4_mmap_validation"
+harness = false
+
+[[bench]]
+name = "decompression_backends"
 harness = false
 
 [profile.release]
