@@ -1,15 +1,17 @@
-//! Compression module implementing Rules 3, 4, and 6 (DataSource abstraction)
+//! Compression module implementing Rules 4 and 6 (Rule 3 disabled)
 //!
 //! # Evidence Base
 //!
-//! - **Rule 3**: Parallel bgzip decompression (6.5× speedup, Entry 029)
-//! - **Rule 4**: Smart mmap for files ≥50 MB (2.5× additional, Entry 032)
+//! - **Rule 3**: Parallel bgzip DISABLED (multi-scale testing showed 0.77-0.84× slowdown)
+//!   - Bounded streaming (8 blocks) conflicts with parallelism effectiveness
+//!   - DAG pruning decision: Remove failed optimization
+//! - **Rule 4**: Smart mmap for files ≥50 MB (2.5× speedup, Entry 032)
 //! - **Rule 6**: DataSource abstraction for network streaming (Entry 028)
 //!
-//! # Combined Performance
+//! # Performance
 //!
-//! - Small files (<50 MB): 6.5× (parallel bgzip only)
-//! - Large files (≥50 MB): 16.3× (6.5 × 2.5, layered optimization)
+//! - Sequential baseline: Uses MultiGzDecoder (flate2)
+//! - Rule 4 (mmap): 2.5× speedup on files ≥50 MB
 
 use crate::error::{BiometalError, Result};
 use crate::io::DataSink;
@@ -17,6 +19,7 @@ use flate2::read::{GzDecoder, MultiGzDecoder};
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use memmap2::Mmap;
+#[allow(unused_imports)] // Used by deprecated parallel code
 use rayon::prelude::*;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
@@ -31,42 +34,24 @@ use std::path::{Path, PathBuf};
 /// - Files ≥50 MB: 2.30-2.55× speedup (APFS prefetching benefit)
 pub const MMAP_THRESHOLD: u64 = 50 * 1024 * 1024; // 50 MB
 
-/// Number of bgzip blocks to decompress in parallel
-///
-/// # Evidence & Memory Budget
-///
-/// Entry 029: Parallel bgzip achieves 6.5× speedup using rayon.
-///
-/// Memory budget (8 blocks in parallel):
-/// - Compressed: 8 × ~64 KB = ~512 KB
-/// - Decompressed: 8 × ~65 KB = ~520 KB (BGZF spec: max 64 KB uncompressed per block)
-/// - Total: ~1 MB (bounded, regardless of file size)
-///
-/// # BGZF Specification Guarantee
-///
-/// The BGZF (Blocked GNU Zip Format) specification guarantees that each block
-/// decompresses to a maximum of 64 KB uncompressed. This ensures our memory bounds
-/// are respected even for malformed files. If a block violates the spec and
-/// decompresses larger, the memory is still bounded to PARALLEL_BLOCK_COUNT × actual_size
-/// and gets cleared on the next chunk.
-///
-/// This delivers Rule 3 (parallel speedup) while maintaining Rule 5 (constant memory).
-pub const PARALLEL_BLOCK_COUNT: usize = 8;
-
-/// Parallel BGZF threshold (disabled - always use parallel)
-///
-/// # Evidence
-///
-/// Benchmark results (November 9, 2025):
-/// - 969KB file with parallel: 17.2 ms
-/// - 969KB file with sequential: 20.5 ms
-/// - Parallel is 1.19× faster despite 40% context switching overhead
-///
-/// **Conclusion**: Multi-core advantage outweighs context switching overhead even on small files.
-/// Threshold set very low (256 KB) to only use sequential for tiny test files.
-///
-/// Future work: Profile with even smaller files (64-256 KB) to find true crossover point.
-pub const PARALLEL_BGZF_THRESHOLD: u64 = 256 * 1024; // 256 KB (conservative)
+// DEPRECATED: Parallel BGZF constants (Rule 3 disabled but code kept for reference)
+//
+// Multi-scale testing (November 11, 2025) showed bounded streaming
+// parallel BGZF achieves 0.77-0.84× performance (slower, not faster).
+//
+// Evidence:
+// - 5.4 MB file: 0.84× (overhead dominates)
+// - 54 MB file: 0.82× (still overhead)
+// - 544 MB file: 0.77× (gets worse with scale)
+//
+// Root cause: Bounded streaming (8 blocks at a time) adds overhead
+// that compounds with file size. Entry 029's 6.5× was achieved with
+// all-at-once decompression (unbounded memory), which conflicts with
+// Rule 5 (constant memory streaming).
+//
+// Decision: DAG pruning (<1.5× threshold) → Remove from code path
+#[allow(dead_code)]
+const PARALLEL_BLOCK_COUNT: usize = 8;
 
 /// Data source abstraction for local and network streaming
 ///
@@ -390,6 +375,9 @@ fn decompress_block(block: &BgzipBlock) -> io::Result<Vec<u8>> {
 /// - Rule 3 (Entry 029): Parallel bgzip achieves 6.5× speedup
 /// - Rule 5 (Entry 026): Constant memory streaming (~5 MB)
 /// - Combined: Delivers both parallelism AND constant memory
+///
+/// DEPRECATED: Multi-scale testing showed 0.77-0.84× slowdown. Code kept for reference.
+#[allow(dead_code)]
 struct BoundedParallelBgzipReader<R: BufRead> {
     inner: R,
     /// Buffer for decompressed data ready to read
@@ -682,8 +670,8 @@ impl CompressedReader {
     /// - Large files: No change (preserve 6.5× speedup)
     /// - Best of both worlds across all file sizes
     pub fn new(source: DataSource) -> Result<Self> {
-        // Get file size for adaptive strategy (local files only)
-        let file_size = source.file_size()?;
+        // Get file size for Rule 4 (mmap threshold)
+        let _file_size = source.file_size()?; // TODO: Use for mmap threshold
 
         // Open source with smart I/O (Rules 4+6)
         let mut reader = source.open()?;
@@ -704,30 +692,14 @@ impl CompressedReader {
         let is_gzipped = first_bytes[0] == 31 && first_bytes[1] == 139;
 
         if is_gzipped {
-            // Adaptive parallelism based on file size
-            let use_parallel = match file_size {
-                Some(size) => size >= PARALLEL_BGZF_THRESHOLD, // Local files: threshold-based
-                None => true, // Network streams: always parallel (size unknown)
-            };
-
-            if use_parallel {
-                // Large files or network streams: Parallel decompression
-                // - Decompresses 8 blocks in parallel (Rule 3: 6.5× speedup)
-                // - Bounded memory: ~1 MB (Rule 5)
-                let parallel_reader = BoundedParallelBgzipReader::new(reader);
-                Ok(Self {
-                    inner: Box::new(BufReader::new(parallel_reader)),
-                })
-            } else {
-                // Small files: Sequential decompression
-                // - Avoids 40% parallel overhead on files <8 MB
-                // - Memory: ~64 KB (minimal)
-                // - Uses MultiGzDecoder to handle BGZF (multiple concatenated gzip streams)
-                let sequential_reader = MultiGzDecoder::new(reader);
-                Ok(Self {
-                    inner: Box::new(BufReader::new(sequential_reader)),
-                })
-            }
+            // Sequential decompression (Rule 3 parallel disabled - multi-scale testing showed 0.77-0.84× slowdown)
+            // - Uses MultiGzDecoder to handle BGZF (multiple concatenated gzip streams)
+            // - Memory: ~64 KB (minimal)
+            // - Performance: Baseline for Rule 4 (mmap) to build upon
+            let sequential_reader = MultiGzDecoder::new(reader);
+            Ok(Self {
+                inner: Box::new(BufReader::new(sequential_reader)),
+            })
         } else {
             // Uncompressed data - pass through directly
             Ok(Self {

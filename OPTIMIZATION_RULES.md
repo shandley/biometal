@@ -12,7 +12,7 @@
 
 These optimization rules are derived from comprehensive experimental validation across 1,357 experiments with statistical rigor (N=30 repetitions, 95% CI, Cohen's d effect sizes). Each rule is evidence-linked to specific lab notebook entries documenting the experimental basis.
 
-**Key Insight**: Individual optimizations are good, but **layered optimizations are exceptional**. The I/O optimization stack demonstrates this: parallel bgzip (6.5×) + smart mmap (2.5×) = **16.3× combined speedup**.
+**Key Insight**: Evidence from one context doesn't always transfer to another. Rules must be validated in YOUR specific architecture. biometal's findings: Rule 3 (parallel BGZF) failed due to streaming constraints, Rule 4 (mmap) limited by decompression bottleneck. See individual rules for context-dependent details.
 
 ---
 
@@ -151,13 +151,21 @@ pub fn count_bases_scalar(seq: &[u8]) -> [u32; 4] {
 
 ---
 
-## Rule 2: Use Block-Based Processing (10K records per block)
+## Rule 2: Use Block-Based Processing (10K records per block) [DEFERRED]
+
+### Current Status (v1.6.0)
+
+**Implementation**: Block API exists but provides **convenience, not performance optimization**.
+**Performance**: Block operations perform similarly to per-record operations (0.88-1.01×).
+**Status**: Deferred to future work (Phase 2+). Focus on Rules 3+4 instead (16.3× combined).
 
 ### Why This Matters
 
-**Problem**: Record-by-record streaming loses 82-86% of NEON speedup.
+**Problem**: Record-by-record streaming loses 82-86% of NEON speedup due to function call overhead.
 
-**Solution**: Process records in blocks of ~10K to preserve SIMD performance while maintaining streaming benefits.
+**Solution (Future)**: Process records in blocks of ~10K with inlined NEON operations to preserve SIMD performance.
+
+**Current Implementation**: Block API calls underlying NEON functions once per sequence (10,000 function calls for 10K sequences), resulting in same overhead as per-record approach.
 
 ### Evidence
 
@@ -165,127 +173,166 @@ pub fn count_bases_scalar(seq: &[u8]) -> [u32; 4] {
 - **Experiments**: 48 total (1,440 measurements)
 - **Finding**: Record-by-record NEON = 82-86% overhead
 - **Solution**: Block-based processing (10K records) = 4-8% overhead
-- **Conclusion**: Block size is critical for streaming + SIMD
+- **Conclusion**: 14× speedup achievable by reducing function calls from 10,000 to 1
+
+**biometal Validation** (November 11, 2025, N=30):
+- **Base counting**: Block is 0.88× per-record (no improvement)
+- **GC content**: Block is 0.98× per-record (no improvement)
+- **Mean quality**: Block is 1.01× per-record (no improvement)
+- **Root cause**: Both approaches make 10,000 function calls
+- **Analysis**: See `RULE2_INVESTIGATION_FINDINGS.md`
 
 **Trade-off Analysis**:
 - Block size too small (1K): SIMD setup overhead dominates
 - Block size too large (100K): Memory pressure, reduces streaming benefit
 - **Sweet spot**: 10K records (~1.5 MB for 150bp reads)
 
-### Implementation Pattern
+### Current Implementation (Convenience API)
 
 ```rust
-/// Block-based FASTQ streaming processor
-/// Evidence: Entry 027 (preserves NEON speedup with streaming)
-pub struct FastqStream<R: BufRead> {
-    reader: R,
-    block_buffer: Vec<FastqRecord>,
-    block_size: usize,
+/// Block-based convenience API (similar performance to per-record)
+pub fn count_bases_block(sequences: &[&[u8]]) -> Vec<BaseCounts> {
+    #[cfg(target_arch = "aarch64")]
+    {
+        unsafe { count_bases_block_neon(sequences) }
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        count_bases_block_scalar(sequences)
+    }
 }
 
-impl<R: BufRead> FastqStream<R> {
-    /// Create streaming processor with evidence-based block size
-    pub fn new(reader: R) -> Self {
-        Self {
-            reader,
-            block_buffer: Vec::with_capacity(10_000), // Evidence-based
-            block_size: 10_000, // From Entry 027
-        }
+#[cfg(target_arch = "aarch64")]
+pub unsafe fn count_bases_block_neon(sequences: &[&[u8]]) -> Vec<BaseCounts> {
+    let mut results = Vec::with_capacity(sequences.len());
+    for seq in sequences {
+        results.push(count_bases_neon(seq));  // ← Still N function calls!
     }
-
-    /// Process one block of records with NEON
-    /// This preserves SIMD speedup while maintaining streaming
-    fn process_block(&mut self) -> Result<ProcessedBlock> {
-        self.block_buffer.clear();
-
-        // Fill block buffer (up to 10K records)
-        while self.block_buffer.len() < self.block_size {
-            match self.read_record()? {
-                Some(record) => self.block_buffer.push(record),
-                None => break, // End of stream
-            }
-        }
-
-        if self.block_buffer.is_empty() {
-            return Ok(ProcessedBlock::empty());
-        }
-
-        // Process entire block with NEON (preserves 16-25× speedup)
-        let results = unsafe {
-            process_block_neon(&self.block_buffer)
-        };
-
-        Ok(ProcessedBlock::new(results))
-    }
+    results
 }
 ```
 
+**Problem**: Still makes 10,000 function calls → same overhead as per-record.
+
+### Future Implementation (14× Speedup)
+
+To achieve Entry 027's 14× speedup would require:
+
+```rust
+#[cfg(target_arch = "aarch64")]
+pub unsafe fn count_bases_block_neon_true(sequences: &[&[u8]]) -> Vec<BaseCounts> {
+    use std::arch::aarch64::*;
+
+    let mut results = Vec::with_capacity(sequences.len());
+
+    // NEON setup once (not per-sequence)
+    for seq in sequences {
+        // Inline NEON operations here (no function call)
+        let mut counts = [0u32; 4];
+        let mut vcounts = [vdupq_n_u32(0); 4];
+
+        let chunks = seq.chunks_exact(16);
+        for chunk in chunks {
+            let seq_vec = vld1q_u8(chunk.as_ptr());
+            // ... full NEON implementation inlined ...
+        }
+
+        results.push(counts);
+    }
+
+    results  // Single function call, hot NEON registers throughout
+}
+```
+
+**Trade-offs**:
+- ✅ Achieves 14× speedup (validated by Entry 027)
+- ✅ Single function call, amortized overhead
+- ❌ Code duplication (~1,200 lines: 3 operations × 2 variants × ~200 lines each)
+- ❌ Maintenance burden keeping implementations in sync
+- ❌ Binary size increase
+
+**Decision**: Deferred to Phase 2+. Rules 3+4 provide 16.3× combined speedup with less complexity.
+
 ### Key Insights
 
-1. **Streaming + SIMD requires batching**: Cannot do both record-by-record
-2. **10K is empirically optimal**: Balances SIMD efficiency and memory footprint
-3. **Constant memory**: 10K records × 150bp = ~1.5 MB (acceptable overhead)
-4. **Preserves both benefits**: Streaming (constant memory) + NEON (16-25× speedup)
+1. **Entry 027 is valid**: 14× speedup IS achievable with proper implementation
+2. **API design matters**: Per-sequence operations prevent capturing the speedup
+3. **Function call overhead**: 10,000 calls wastes ~500K-900K cycles (82-86% overhead)
+4. **Trade-off decision**: Rules 3+4 (16.3× combined) > Rule 2 (14×) for less effort
+5. **Current block API**: Useful for convenience, not performance optimization
 
 ---
 
-## Rule 3: Use Parallel Bgzip Decompression (6.5× speedup)
+## Rule 3: Parallel Bgzip Decompression - DISABLED (Context-Dependent)
 
-### When to Apply
+### Status: NOT IMPLEMENTED in biometal
 
-**All bgzip-compressed files** (.fq.bgz, .fa.bgz, .fastq.gz with bgzip block structure)
+**Multi-scale testing (November 11, 2025)** showed bounded streaming parallel BGZF achieves **0.77-0.84× slowdown** (not 6.5× speedup).
 
-Bgzip files consist of independent compressed blocks that can be decompressed in parallel using all CPU cores.
+**DAG Decision**: Failed pruning threshold (<1.5×) → Optimization removed.
 
-### Evidence
+### Evidence: Two Contexts, Different Results
 
-**Source**: [Lab Notebook Entry 029](lab-notebook/2025-11/20251104-029-EXPERIMENT-parallel-bgzip-cpu.md)
-- **Implementation**: Rayon-based CPU parallel prototype
-- **Speedup**: 6.5× (production-validated)
-- **Platform**: Mac, Linux, Windows (fully portable)
-- **Cost**: 0 platform dependencies (pure Rust + Rayon)
-- **Findings**: `results/bgzip_parallel/PARALLEL_BGZIP_FINDINGS.md`
+**Entry 029 Context** (All-at-once decompression):
+- **Implementation**: Load entire file → decompress all blocks in parallel
+- **Memory**: Unbounded (file size = RAM usage)
+- **Speedup**: 6.5× (validated)
+- **Example**: `std::fs::read()` → `par_iter()` → decompress all
 
-**Why not GPU**: [Entry 031](lab-notebook/2025-11/20251104-031-EXPERIMENT-metal-deflate-phase2.md)
+**biometal Context** (Bounded streaming):
+- **Implementation**: Process 8 blocks at a time for constant memory (Rule 5)
+- **Memory**: Bounded ~1 MB (regardless of file size)
+- **Speedup**: 0.77-0.84× (overhead dominates)
+- **Multi-scale**: Gets WORSE with larger files (5.4MB: 0.84×, 544MB: 0.77×)
+- **Root cause**: Chunking overhead compounds with scale
+
+### Why Entry 029's 6.5× Doesn't Transfer
+
+**Architectural conflict**: Rule 3 (parallelism) incompatible with Rule 5 (constant memory streaming).
+
+**Trade-off choice**: biometal prioritizes Rule 5 (streaming for TB-scale files) over Rule 3 (speed).
+
+**Documentation**: `RULE3_BENCHMARK_RESULTS.md`, `benches/rule3_multiscale_validation.rs`
+
+### Why not GPU
+
+[Entry 031](lab-notebook/2025-11/20251104-031-EXPERIMENT-metal-deflate-phase2.md):
 - Real bgzip uses 100% dynamic Huffman trees (not fixed)
 - GPU implementation requires dynamic Huffman decoder: 7-10 days development
-- ROI too low: 7-10 days for 2-3× incremental over CPU's 6.5×
-- **Decision**: Use CPU parallel only (save time for biometal core features)
+- ROI too low: 7-10 days for 2-3× incremental over CPU's theoretical 6.5×
+- **Decision**: Neither GPU nor CPU parallel (streaming architecture priority)
 
-### Implementation Pattern
+### Alternative: All-at-Once Approach (Entry 029's Method)
+
+**If Rule 5 (streaming) is NOT a priority**, Entry 029's approach works:
 
 ```rust
-use rayon::prelude::*;
+// Load entire file (unbounded memory)
+let compressed = std::fs::read("file.fq.gz")?;
 
-/// Parallel bgzip decompression (6.5× speedup)
-/// Evidence: Entry 029 (CPU parallel prototype)
-pub fn decompress_bgzip_parallel(compressed: &[u8]) -> io::Result<Vec<u8>> {
-    // Parse bgzip block boundaries
-    let blocks = parse_bgzip_blocks(compressed)?;
+// Parse all blocks
+let blocks = parse_bgzip_blocks(&compressed)?;
 
-    // Decompress blocks in parallel (uses all CPU cores)
-    let decompressed_blocks: Vec<_> = blocks
-        .par_iter()
-        .map(|block| decompress_block(block))
-        .collect::<io::Result<Vec<_>>>()?;
+// Decompress ALL blocks in parallel (6.5× speedup)
+let decompressed: Vec<_> = blocks
+    .par_iter()
+    .map(decompress_block)
+    .collect::<io::Result<Vec<_>>>()?;
 
-    // Concatenate decompressed blocks
-    Ok(decompressed_blocks.concat())
-}
+// Concatenate
+Ok(decompressed.concat())
 ```
 
-### Key Insights
+**Pros**: 6.5× speedup (validated)
+**Cons**: Memory scales with file size (100 GB file = 100 GB RAM)
 
-1. **Bgzip enables parallelism**: Independent blocks designed for parallel decompression
-2. **CPU is production-ready**: Works on all platforms, no GPU complexity
-3. **Rayon handles scheduling**: Automatic work distribution across cores
-4. **No GPU needed**: CPU parallel is sufficient (validated decision from Entry 031)
+### Lesson: Context Dependency
 
-### Platform Support
+**Key insight**: Evidence from one architecture doesn't always transfer to another.
 
-- ✅ **All platforms**: Mac, Linux, Windows, ARM, x86_64
-- ✅ **Zero platform deps**: Pure Rust + Rayon
-- ✅ **Scales to core count**: Uses all available CPU cores
+- Entry 029: Optimized for speed (unbounded memory)
+- biometal: Optimized for scalability (constant memory)
+- **Different goals → Different optimal solutions**
 
 
 ---
@@ -366,19 +413,45 @@ impl DataSource {
 }
 ```
 
-### Combined Performance
+### Performance: Context-Dependent
 
-**Small files (<50 MB)**:
+**Entry 032 tested**: RAW file I/O (no decompression)
+- Large files (≥50 MB): 2.30-2.55× speedup ✓
+
+**biometal reality**: Compressed file processing (with decompression)
+- Decompression: 98.7% of time (CPU-bound)
+- I/O: 1.3% of time
+- **mmap benefit**: ~1% overall (Amdahl's Law)
+
+**Why the difference**:
+```
+Entry 032: std::fs::read() → 100% I/O → 2.5× applies fully
+biometal: decompress() → 99% CPU → 2.5× on 1% = negligible
+```
+
+**Documentation**: `RULE4_FINDINGS.md`, `benches/rule4_mmap_validation.rs`
+
+### When mmap Actually Helps
+
+**Uncompressed files** (hypothetical):
+- 100% I/O-bound → 2.5× speedup applies fully
+- Example: Uncompressed BAM, large text files
+
+**Compressed files** (current use case):
+- ~1% improvement (I/O is only 1.3% of total time)
+- Implementation kept (no harm, small benefit)
+
+### Combined Performance (Revised)
+
+**Current Reality** (Rule 3 disabled, Rule 4 limited):
+- Sequential decompression: Baseline
+- mmap on compressed files: ~1% improvement
+- **Overall**: ~1× (no significant speedup for compressed files)
+
+**Original Projection** (Rules 3+4 both working):
 - Parallel bgzip: 6.5×
-- Standard I/O: 1.0×
-- **Combined**: 6.5× speedup
-
-**Large files (≥50 MB)** - typical in genomics:
-- Parallel bgzip: 6.5×
-- Smart mmap: 2.5×
-- **Combined**: 16.3× speedup (6.5 × 2.5)
-
-**E2E impact** (from Entry 028):
+- Smart mmap: 2.5× additional
+- **Combined**: 16.3× (not achieved due to architectural conflicts)
 - Before optimization: NEON 1.04-1.08× E2E (I/O bottleneck 264-352×)
 - After optimization: Projected **17× E2E speedup** for large files
 
@@ -542,13 +615,16 @@ pub struct StreamingReader {
 
 ### Individual Rules (Good)
 
-| Rule | Speedup | Platform | Priority |
-|------|---------|----------|----------|
-| NEON SIMD | 16-25× | ARM | High |
-| Block-based | Preserves NEON | All | High |
-| Parallel bgzip | 6.5× | All | High |
-| Smart mmap | 2.5× | macOS | Medium |
-| Constant streaming | 99.5% mem | All | High |
+| Rule | Speedup | Platform | Status | Priority |
+|------|---------|----------|--------|----------|
+| NEON SIMD | 16-25× | ARM | ✅ v1.0.0 | High |
+| Block-based | 14× (potential) | All | ⏳ Deferred | Medium |
+| Parallel bgzip | 6.5× | All | ❌ Phase 2 | High |
+| Smart mmap | 2.5× | macOS | ❌ Phase 2 | High |
+| Constant streaming | 99.5% mem | All | ✅ v1.0.0 | High |
+| Network streaming | Analysis without download | All | ✅ v1.0.0 | High |
+
+**Note**: Rule 2 (Block processing) deferred. Current block API is convenience feature only (no speedup).
 
 ### Combined Stack (Exceptional)
 
@@ -576,14 +652,15 @@ pub struct StreamingReader {
 
 ### Implementation Timeline
 
-**Week 1-2**: Core infrastructure + I/O optimization
-- Rules 1, 2, 3, 4, 5 (streaming + NEON + parallel bgzip + mmap)
+**v1.0.0 (Released)**: Core streaming + NEON
+- Rules 1, 5, 6 (NEON SIMD + constant streaming + network streaming)
 
-**Week 3-4**: Network streaming
-- Rule 6 (HTTP/SRA streaming + caching)
+**Phase 2 (Planned)**: I/O optimization stack
+- Rules 3, 4 (parallel bgzip + smart mmap) → 16.3× combined speedup
 
-**Week 5-6**: Python bindings + polish
-- PyO3 wrappers for Python ecosystem
+**Future (Deferred)**: True block processing
+- Rule 2 (inline NEON for 14× speedup) - requires code duplication
+- Lower priority: Rules 3+4 provide more speedup (16.3×) with less complexity
 
 ---
 

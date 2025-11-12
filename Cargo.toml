@@ -142,6 +142,22 @@ harness = false
 name = "bai_index_performance"
 harness = false
 
+[[bench]]
+name = "rule2_block_processing"
+harness = false
+
+[[bench]]
+name = "parallel_bgzf_validation"
+harness = false
+
+[[bench]]
+name = "rule3_multiscale_validation"
+harness = false
+
+[[bench]]
+name = "rule4_mmap_validation"
+harness = false
+
 [profile.release]
 lto = true
 codegen-units = 1
