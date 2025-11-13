@@ -51,7 +51,7 @@ exclude = [
 
 [dependencies]
 # Core I/O and compression
-flate2 = { version = "1.0", features = ["zlib-ng"], default-features = false }  # Gzip/bgzip with zlib-ng backend (Phase 1 investigation)
+flate2 = { version = "1.0", features = ["cloudflare_zlib"], default-features = false }  # cloudflare_zlib: 1.67× decompression, 3.8×+ compression (fastest backend validated!)
 memmap2 = "0.9"         # Memory-mapped I/O (Rule 4)
 crc32fast = "1.4"       # Fast CRC32 for BGZF format
 
@@ -160,6 +160,10 @@ harness = false
 
 [[bench]]
 name = "decompression_backends"
+harness = false
+
+[[bench]]
+name = "compression_backends"
 harness = false
 
 [profile.release]
