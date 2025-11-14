@@ -18,6 +18,7 @@ mod bed;
 mod gfa;
 mod vcf;
 mod gff;
+mod fasta;
 
 pub use records::*;
 pub use streams::*;
@@ -32,6 +33,7 @@ pub use bed::*;
 pub use gfa::*;
 pub use vcf::*;
 pub use gff::*;
+pub use fasta::*;
 
 /// biometal: ARM-native bioinformatics library
 ///
@@ -92,6 +94,9 @@ fn biometal(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Register GFF3 format types
     m.add_class::<PyGff3Record>()?;
     m.add_class::<PyGff3Stream>()?;
+
+    // Register FASTA index
+    m.add_class::<PyFaiIndex>()?;
 
     // Register operations
     m.add_function(wrap_pyfunction!(py_gc_content, m)?)?;
