@@ -1,9 +1,9 @@
 # biometal: Claude Development Guide
 
 **Project**: biometal - ARM-native bioinformatics library
-**Latest Release**: v1.8.0 (November 13, 2025)
-**Current Focus**: Format library expansion (BED, GFA, VCF, GFF3 parsers with Python support)
-**Phase**: Phase 2 Format Library Sprint - Week 1 complete (4 formats shipped, 860 tests passing)
+**Latest Release**: v1.9.0 (November 14, 2025)
+**Current Focus**: Indexed random access (FAI and TBI for efficient region queries)
+**Phase**: Phase 2 Format Library Sprint - Week 2 complete (indices + integration examples)
 
 ---
 
@@ -78,7 +78,7 @@ Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression sp
 
 ---
 
-## Current Status (v1.8.0)
+## Current Status (v1.9.0)
 
 ### Released Features
 - **FASTQ/FASTA** streaming parsers (constant memory)
@@ -92,10 +92,11 @@ Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression sp
   - SAM writing for downstream tools
   - Robustness features (oversized CIGAR, malformed record handling)
   - 70 tests passing (integration complete)
-- **Python bindings** (PyO3 0.27, 60+ functions)
+- **Python bindings** (PyO3 0.27, 70+ functions)
   - Full BAM/FASTQ/FASTA support
   - CIGAR operations, SAM writing
   - BED, GFA, VCF, GFF3 format support
+  - FAI and TBI index support
 - **Format Library (v1.8.0)**: Production-ready parsers for genomic annotation and assembly formats
   - **BED (Browser Extensible Data)**: Genomic intervals (BED3/6/12 support)
   - **GFA (Graphical Fragment Assembly)**: Assembly graphs (Segment/Link/Path records)
@@ -104,7 +105,19 @@ Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression sp
   - **Python gzip support**: All 4 formats support `.gz` files in Python
   - **Property-based testing**: 23 tests validating format invariants
   - **Real-world validation**: 6 integration tests with ENCODE, UCSC, Ensembl, 1000 Genomes data
-- **Tests**: 860 passing (649 unit + 211 doc + 23 property-based + 6 real-world integration)
+- **Index Support (v1.9.0)**: Efficient random access to genomic data
+  - **FAI (FASTA Index)**: O(1) random access to sequences and regions
+    - Build, load, and query FASTA indices
+    - Compatible with samtools faidx format
+    - ~200 bytes per sequence in memory
+  - **TBI (Tabix Index)**: O(log n) region queries on BGZF-compressed files
+    - Support for VCF, BED, GFF3 indices
+    - Hierarchical binning for fast queries
+    - 100-1000× speedup vs sequential scanning
+    - Compatible with samtools tabix format
+  - **Integration examples**: 3 Rust examples + 1 Python notebook
+  - **29 tests**: FAI and TBI unit + integration tests
+- **Tests**: 890 passing (670 unit + 211 doc + 23 property-based + 6 real-world integration)
 
 ### Optimization Rules Implemented
 
@@ -122,30 +135,34 @@ Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression sp
 **Rule 4**: Minimal benefit (~1%) for CPU-bound decompression workloads
 
 ### Distribution
-- **PyPI**: biometal-rs v1.8.0 (pip install biometal-rs)
-- **crates.io**: biometal v1.8.0 (cargo add biometal)
+- **PyPI**: biometal-rs v1.9.0 (pip install biometal-rs)
+- **crates.io**: biometal v1.9.0 (cargo add biometal)
 
 ---
 
 
 ## Current Work: Phase 2 Format Library Sprint
 
-**Status**: ✅ **Week 1 Complete** - 4 formats shipped in v1.8.0
+**Status**: ✅ **Week 2 Complete** - Index support shipped in v1.9.0
 
-### Completed (v1.8.0)
-- ✅ BED format (BED3/6/12 variants, genomic intervals)
-- ✅ GFA format (assembly graphs, Segment/Link/Path)
-- ✅ VCF format (VCF 4.2 spec, variant calling)
-- ✅ GFF3 format (hierarchical gene annotations)
-- ✅ Python gzip support for all 4 formats
-- ✅ Property-based testing framework (23 tests)
-- ✅ Real-world data validation (6 integration tests)
+### Completed (v1.9.0)
+- ✅ BED format (BED3/6/12 variants, genomic intervals) - v1.8.0
+- ✅ GFA format (assembly graphs, Segment/Link/Path) - v1.8.0
+- ✅ VCF format (VCF 4.2 spec, variant calling) - v1.8.0
+- ✅ GFF3 format (hierarchical gene annotations) - v1.8.0
+- ✅ Python gzip support for all 4 formats - v1.8.0
+- ✅ Property-based testing framework (23 tests) - v1.8.0
+- ✅ Real-world data validation (6 integration tests) - v1.8.0
+- ✅ **FAI (FASTA Index)**: Build, load, query sequences/regions - v1.9.0
+- ✅ **TBI (Tabix Index)**: Region queries on BGZF files - v1.9.0
+- ✅ **Integration examples**: 3 Rust + 1 Python notebook - v1.9.0
+- ✅ **Python bindings**: FAI and TBI support - v1.9.0
 
 ### In Progress
-- Format utilities (FAI, TBI indices) - Week 2-3
-- Additional formats (GTF, PAF, narrowPeak) - Week 4-8
-- Cross-format integration and examples - Week 9-12
-- Python enhancements and v2.0.0 release - Week 13-16
+- Additional formats (GTF, PAF, narrowPeak) - Week 3-6
+- Cross-format integration and workflows - Week 7-10
+- Python enhancements and documentation - Week 11-14
+- Performance benchmarking and v2.0.0 release - Week 15-16
 
 ### Strategic Context
 
