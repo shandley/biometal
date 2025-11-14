@@ -19,6 +19,7 @@ mod gfa;
 mod vcf;
 mod gff;
 mod fasta;
+mod tbi;
 
 pub use records::*;
 pub use streams::*;
@@ -34,6 +35,7 @@ pub use gfa::*;
 pub use vcf::*;
 pub use gff::*;
 pub use fasta::*;
+pub use tbi::*;
 
 /// biometal: ARM-native bioinformatics library
 ///
@@ -97,6 +99,9 @@ fn biometal(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Register FASTA index
     m.add_class::<PyFaiIndex>()?;
+
+    // Register TBI index
+    m.add_class::<PyTbiIndex>()?;
 
     // Register operations
     m.add_function(wrap_pyfunction!(py_gc_content, m)?)?;
