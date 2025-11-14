@@ -39,6 +39,7 @@
 //! ## Module Organization
 //!
 //! - [`alignment`]: Sequence alignment algorithms (Smith-Waterman with CPU/NEON/GPU)
+//! - [`formats`]: Bioinformatics file format parsers (BED, GFA, VCF, GFF)
 //! - [`io`]: Streaming parsers (FASTQ, FASTA, compression, network)
 //! - [`operations`]: ARM NEON-optimized operations
 //! - [`optimization`]: Auto-detection and platform tuning
@@ -48,6 +49,7 @@
 
 pub mod alignment;
 pub mod error;
+pub mod formats;
 pub mod io;
 pub mod operations;
 pub mod optimization;
