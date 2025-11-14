@@ -57,6 +57,7 @@
 pub mod bed;
 pub mod gfa;
 pub mod gff;
+pub mod index;
 pub mod primitives;
 pub mod vcf;
 
@@ -64,3 +65,4 @@ pub mod vcf;
 pub use primitives::{
     FormatError, GenomicInterval, HeaderParser, Strand, TabDelimitedParser, TabDelimitedRecord,
 };
+pub use index::TbiIndex;
