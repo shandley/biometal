@@ -30,6 +30,22 @@ Stream data directly from networks and analyze terabyte-scale datasets on consum
 
 ---
 
+## 🎉 NEW in v1.8.0: Format Library
+
+biometal now includes production-ready parsers for genomic annotation and assembly formats:
+- **BED**: Genomic intervals (ChIP-seq peaks, gene annotations)
+- **GFA**: Assembly graphs (pangenomes, read overlap graphs)
+- **VCF**: Genetic variants (SNPs, indels, structural variants)
+- **GFF3**: Hierarchical gene features (genes, mRNAs, exons, CDS)
+
+All formats support:
+- ✅ Streaming architecture (constant ~5 MB memory)
+- ✅ Python gzip support (`.gz` files work transparently)
+- ✅ Property-based testing (23 tests validating format invariants)
+- ✅ Real-world validation (ENCODE, UCSC, Ensembl, 1000 Genomes data)
+
+---
+
 ## Quick Start
 
 ### Installation
@@ -37,7 +53,7 @@ Stream data directly from networks and analyze terabyte-scale datasets on consum
 **Rust:**
 ```toml
 [dependencies]
-biometal = "1.7"
+biometal = "1.8"
 ```
 
 **Python:**
@@ -147,7 +163,28 @@ Learn biometal through hands-on Jupyter notebooks (5 complete, ~2.5 hours):
     - O(log n) random access to BAM files
     - Near-zero overhead (<1ms index loading)
     - Speedup scales with file size (10-500× for 1-10 GB files)
-- **50+ Python functions** for bioinformatics workflows
+- **Format Library (v1.8.0)**: Production-ready parsers for genomic annotation and assembly formats
+  - **BED (Browser Extensible Data)**: Genomic intervals with streaming architecture
+    - BED3/6/12 format support
+    - 0-based half-open coordinate system
+    - Constant memory (~5 MB) for terabyte-scale peak files
+  - **GFA (Graphical Fragment Assembly)**: Assembly graph format
+    - Segment, Link, Path record types
+    - Graph connectivity validation
+    - Streaming architecture for large assembly graphs
+  - **VCF (Variant Call Format)**: Genetic variant data
+    - VCF 4.2 specification compliance
+    - Header parsing with sample/contig/INFO extraction
+    - SNP/indel classification
+    - Multi-allelic variant support
+  - **GFF3 (General Feature Format)**: Hierarchical gene annotations
+    - 1-based inclusive coordinate system
+    - Parent-child relationship tracking (gene → mRNA → exon/CDS)
+    - Attribute parsing with convenience methods
+    - Coordinate conversion to BED (0-based)
+  - **Testing**: 23 property-based tests + 6 real-world integration tests
+  - **Python bindings**: Full streaming API for all formats
+- **60+ Python functions** for bioinformatics workflows
 
 ---
 
@@ -174,11 +211,11 @@ Learn biometal through hands-on Jupyter notebooks (5 complete, ~2.5 hours):
 
 | Platform | Performance | Tests | Status |
 |----------|-------------|-------|--------|
-| **Mac ARM** (M1-M4) | **16-25× speedup** | ✅ 461/461 | Optimized |
-| **AWS Graviton** | 6-10× speedup | ✅ 461/461 | Portable |
-| **Linux x86_64** | 1× (scalar) | ✅ 461/461 | Portable |
+| **Mac ARM** (M1-M4) | **16-25× speedup** | ✅ 860/860 | Optimized |
+| **AWS Graviton** | 6-10× speedup | ✅ 860/860 | Portable |
+| **Linux x86_64** | 1× (scalar) | ✅ 860/860 | Portable |
 
-*Test count includes 354 core + 81 BAM + 26 BAI Python tests*
+*Test count: 649 unit tests + 211 doc tests + 23 property-based tests + 6 real-world integration tests*
 
 ---
 
@@ -204,6 +241,11 @@ biometal's design is grounded in comprehensive experimental validation:
 **v1.5.0** (Released Nov 9, 2025) ✅ - ARM NEON sequence decoding (+27.5% BAM parsing speedup)
 **v1.6.0** (Released Nov 10, 2025) ✅ - BAI index support (indexed region queries, 1.68-500× speedup)
 **v1.7.0** (Released Nov 13, 2025) ✅ - cloudflare_zlib backend (1.67× decompression, 2.29× compression speedups)
+**v1.8.0** (Released Nov 13, 2025) ✅ - Format library (BED, GFA, VCF, GFF3) with property-based testing
+  - 4 production-ready format parsers with streaming architecture
+  - 23 property-based tests + 6 real-world integration tests
+  - Tested against ENCODE, UCSC, Ensembl, 1000 Genomes data
+  - Full Python bindings for all formats
 
 **Next** (Planned):
 - CSI index support (for references >512 Mbp)
@@ -213,7 +255,7 @@ biometal's design is grounded in comprehensive experimental validation:
 
 **Future** (Community Driven):
 - Extended operations (alignment, assembly)
-- Additional formats (VCF, BCF, CRAM)
+- Additional formats (BCF, CRAM)
 - Metal GPU acceleration (Mac-specific)
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
@@ -394,6 +436,60 @@ print(f"Mean coverage: {sum(coverage.values())/len(coverage):.1f}×")
   - 1 GB file: 50-100× speedup
   - 10 GB file: 200-500× speedup
 
+### Format Library: BED/GFA/VCF/GFF3 (v1.8.0)
+
+```python
+import biometal
+
+# BED: Parse genomic intervals (ChIP-seq peaks, gene annotations)
+stream = biometal.Bed6Stream.from_path("peaks.bed.gz")
+for record in stream:
+    print(f"{record.chrom}:{record.start}-{record.end} score={record.score}")
+    length = record.length()
+    if length > 1000:
+        print(f"  Long peak: {length}bp")
+
+# GFA: Parse assembly graphs (genome assembly, pangenomes)
+stream = biometal.GfaStream.from_path("assembly.gfa")
+segments = []
+for record in stream:
+    if isinstance(record, biometal.GfaSegment):
+        segments.append(record)
+        print(f"Segment {record.name}: {len(record.sequence)}bp")
+
+# VCF: Parse genetic variants (SNPs, indels)
+stream = biometal.VcfStream.from_path("variants.vcf.gz")
+header = stream.header()  # Note: header() not parse_header()
+print(f"VCF version: {header.fileformat}, Samples: {len(header.samples)}")
+
+for variant in stream:
+    if variant.quality and variant.quality > 30:
+        print(f"{variant.chrom}:{variant.pos} {variant.reference}→{variant.alternate[0]}")
+        if variant.is_snp():
+            print(f"  SNP with quality {variant.quality}")
+
+# GFF3: Parse hierarchical gene annotations (genes, mRNAs, exons, CDS)
+stream = biometal.Gff3Stream.from_path("annotations.gff3.gz")
+for feature in stream:
+    if feature.feature_type == "gene":
+        gene_id = feature.get_id()
+        length = feature.length()  # 1-based inclusive coordinates
+        print(f"Gene {gene_id}: {length}bp on {feature.strand}")
+
+    elif feature.feature_type == "exon":
+        parent = feature.get_parent()
+        # Note: interval() method not available in Python bindings
+        # Use feature.start and feature.end directly (1-based inclusive)
+        print(f"  Exon of {parent}: {feature.start}-{feature.end}")
+```
+
+**Format Library Features:**
+- **Streaming architecture**: Constant ~5 MB memory for all formats
+- **Production-ready**: Tested against real ENCODE, UCSC, Ensembl, 1000 Genomes data
+- **Property-based testing**: 23 tests validating format invariants (round-trip parsing, coordinate systems, specification compliance)
+- **Real-world validation**: 6 integration tests with production files (61,547 GFF3 features, 1,000 UCSC genes, 10 VCF variants)
+- **Python bindings**: Full streaming API with Pythonic interfaces
+
 ---
 
 ## FAQ
@@ -460,10 +556,10 @@ For the experimental methodology:
 ---
 
 <p align="center">
-<strong>Status:</strong> v1.7.0 released 🚀<br>
-<strong>Latest:</strong> cloudflare_zlib backend (1.67× decompression, 2.29× compression) (Nov 13, 2025)<br>
-<strong>Tests:</strong> 582 passing (354 library + 81 BAM + 26 BAI Python + 121 doc)<br>
+<strong>Status:</strong> v1.8.0 released 🚀<br>
+<strong>Latest:</strong> Format library (BED, GFA, VCF, GFF3) with property-based testing (Nov 13, 2025)<br>
+<strong>Tests:</strong> 860 passing (649 unit + 211 doc + 23 property-based + 6 real-world integration)<br>
 <strong>Performance:</strong> 5.82M records/sec, 92.0 MiB/s throughput, <1ms index loading<br>
-<strong>Python Functions:</strong> 50+ (including full BAM + BAI support)<br>
+<strong>Python Functions:</strong> 60+ (FASTQ/FASTA, BAM/BAI, BED, GFA, VCF, GFF3)<br>
 <strong>Evidence Base:</strong> 1,357 experiments, 40,710 measurements
 </p>

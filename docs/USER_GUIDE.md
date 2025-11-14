@@ -1,7 +1,7 @@
 # biometal User Guide
 
-**Version**: 1.6.0
-**Last Updated**: November 10, 2025
+**Version**: 1.8.0
+**Last Updated**: November 13, 2025
 
 Welcome to biometal! This guide will help you get started with high-performance bioinformatics on ARM and x86_64 platforms.
 
@@ -14,10 +14,11 @@ Welcome to biometal! This guide will help you get started with high-performance 
 3. [Core Concepts](#core-concepts)
 4. [Quick Start](#quick-start)
 5. [Common Workflows](#common-workflows)
-6. [Performance Guide](#performance-guide)
-7. [Troubleshooting](#troubleshooting)
-8. [Migration Guide](#migration-guide)
-9. [API Reference](#api-reference)
+6. [Working with Genomic Formats](#working-with-genomic-formats)
+7. [Performance Guide](#performance-guide)
+8. [Troubleshooting](#troubleshooting)
+9. [Migration Guide](#migration-guide)
+10. [API Reference](#api-reference)
 
 ---
 
@@ -598,6 +599,675 @@ output.close()
 retention_rate = kept_reads / total_reads * 100
 print(f"Kept {kept_reads:,} / {total_reads:,} reads ({retention_rate:.2f}%)")
 ```
+
+---
+
+## Working with Genomic Formats
+
+**New in v1.8.0**: biometal now includes production-ready parsers for genomic annotation and assembly formats, all with streaming architecture and constant ~5 MB memory usage.
+
+### Supported Formats
+
+| Format | Description | Use Cases | Coordinate System |
+|--------|-------------|-----------|-------------------|
+| **BED** | Browser Extensible Data | ChIP-seq peaks, gene annotations, regulatory elements | 0-based half-open [start, end) |
+| **GFA** | Graphical Fragment Assembly | Genome assembly, pangenome graphs | N/A (graph structure) |
+| **VCF** | Variant Call Format | SNPs, indels, structural variants | 1-based positions |
+| **GFF3** | General Feature Format | Hierarchical gene annotations | 1-based inclusive [start, end] |
+
+**Key Features**:
+- ✅ Streaming architecture (constant ~5 MB memory)
+- ✅ Production-ready (tested against ENCODE, UCSC, Ensembl, 1000 Genomes data)
+- ✅ Property-based testing (23 tests validating format invariants)
+- ✅ Real-world validation (61,547-feature GFF3 files)
+
+---
+
+### BED Format: Genomic Intervals
+
+BED (Browser Extensible Data) files represent genomic intervals with optional annotations.
+
+**Format Variants**:
+- **BED3**: Basic intervals (chrom, start, end)
+- **BED6**: Adds name, score, strand
+- **BED12**: Full format with blocks (exons, thick regions)
+
+**Coordinate System**:
+- **0-based half-open**: `[start, end)`
+- Start position is 0-indexed (first base = 0)
+- End position is exclusive
+- Length = end - start
+
+**Example**:
+```
+chr1    1000    2000    peak1    500    +
+```
+- Chromosome: chr1
+- Start: position 1000 (0-based)
+- End: position 2000 (exclusive, so last base is 1999)
+- Length: 2000 - 1000 = 1000 bp
+- Name: peak1
+- Score: 500 (range 0-1000)
+- Strand: + (forward)
+
+#### BED3: Basic Intervals
+
+**Python Example**:
+```python
+import biometal
+
+# Parse BED3 file (chrom, start, end only)
+stream = biometal.Bed3Stream.from_path("intervals.bed.gz")
+
+for record in stream:
+    print(f"{record.chrom}:{record.start}-{record.end}")
+
+    # Calculate length
+    length = record.length()
+    print(f"  Length: {length} bp")
+
+    # Filter by length
+    if length >= 1000:
+        print(f"  Long interval!")
+```
+
+**Rust Example**:
+```rust
+use biometal::formats::bed::Bed3Record;
+use biometal::formats::TabDelimitedParser;
+use std::fs::File;
+
+let file = File::open("intervals.bed")?;
+let parser = TabDelimitedParser::<_, Bed3Record>::new(file);
+
+for result in parser {
+    let record = result?;
+    let length = record.interval.length();
+    println!("{}: {} bp", record.interval.chrom, length);
+}
+```
+
+#### BED6: Extended Intervals
+
+**Python Example**:
+```python
+import biometal
+
+# Parse ChIP-seq peaks (BED6 format)
+stream = biometal.Bed6Stream.from_path("peaks.bed.gz")
+
+high_confidence_peaks = 0
+total_coverage = 0
+
+for record in stream:
+    # Calculate coverage
+    length = record.length()
+    total_coverage += length
+
+    # Filter by score (0-1000 range)
+    if record.score and record.score >= 800:
+        high_confidence_peaks += 1
+        print(f"High-confidence peak: {record.chrom}:{record.start}-{record.end}")
+        print(f"  Name: {record.name}, Score: {record.score}, Strand: {record.strand}")
+
+print(f"Total coverage: {total_coverage:,} bp")
+print(f"High-confidence peaks: {high_confidence_peaks}")
+```
+
+**Use Cases**:
+- ChIP-seq peak calling
+- RNA-seq exon boundaries
+- Regulatory element annotations
+- Copy number variation segments
+
+---
+
+### GFA Format: Assembly Graphs
+
+GFA (Graphical Fragment Assembly) represents genome assembly graphs with segments, links, and paths.
+
+**Record Types**:
+- **Segment (S)**: DNA sequence with metadata tags
+- **Link (L)**: Edge connecting two segments (with orientation)
+- **Path (P)**: Ordered traversal through segments
+
+**Tag Format**:
+- `LN:i:1000` - Length tag (integer)
+- `KC:i:500` - K-mer count
+- Custom tags supported
+
+#### Parsing Assembly Graphs
+
+**Python Example**:
+```python
+import biometal
+
+# Parse GFA assembly graph
+stream = biometal.GfaStream.from_path("assembly.gfa")
+
+segments = []
+links = []
+paths = []
+
+for record in stream:
+    if isinstance(record, biometal.GfaSegment):
+        segments.append(record)
+        print(f"Segment {record.name}:")
+        print(f"  Sequence: {len(record.sequence)} bp")
+        print(f"  Tags: {record.tags}")
+
+        # Validate sequence (should be ACGT only)
+        if all(base in 'ACGT' for base in record.sequence):
+            print(f"  ✓ Valid DNA sequence")
+
+    elif isinstance(record, biometal.GfaLink):
+        links.append(record)
+        print(f"Link: {record.from_segment}{record.from_orient} -> {record.to_segment}{record.to_orient}")
+        print(f"  Overlap: {record.overlap}")
+
+    elif isinstance(record, biometal.GfaPath):
+        paths.append(record)
+        print(f"Path {record.name}: {len(record.segments)} segments")
+
+print(f"\nGraph summary:")
+print(f"  Segments: {len(segments)}")
+print(f"  Links: {len(links)}")
+print(f"  Paths: {len(paths)}")
+print(f"  Total sequence: {sum(len(s.sequence) for s in segments):,} bp")
+```
+
+**Rust Example**:
+```rust
+use biometal::formats::gfa::{GfaParser, GfaRecord};
+use std::fs::File;
+
+let file = File::open("assembly.gfa")?;
+let parser = GfaParser::new(file);
+
+let mut segment_count = 0;
+let mut link_count = 0;
+
+for result in parser {
+    match result? {
+        GfaRecord::Segment(seg) => {
+            segment_count += 1;
+            println!("Segment {}: {} bp", seg.name, seg.sequence.len());
+        }
+        GfaRecord::Link(link) => {
+            link_count += 1;
+            println!("Link: {} -> {}", link.from_segment, link.to_segment);
+        }
+        _ => {}
+    }
+}
+```
+
+**Use Cases**:
+- De novo genome assembly
+- Pangenome graphs
+- Metagenome assembly
+- Graph-based variant calling
+
+---
+
+### VCF Format: Genetic Variants
+
+VCF (Variant Call Format) represents genetic variants with rich metadata.
+
+**VCF 4.2 Specification**:
+- Header lines start with `##`
+- Column header starts with `#CHROM`
+- Tab-delimited variant records
+- INFO field contains variant annotations
+- FORMAT/sample columns contain genotype data
+
+**Coordinate System**:
+- **1-based positions**: First base of chromosome = position 1
+- REF allele starts at POS
+- ALT alleles are alternatives to REF
+
+#### Parsing VCF Files
+
+**Python Example**:
+```python
+import biometal
+
+# Parse VCF file with header
+stream = biometal.VcfStream.from_path("variants.vcf.gz")
+
+# Get header (automatically parsed on file open)
+header = stream.header()
+print(f"VCF version: {header.fileformat}")
+print(f"Samples: {', '.join(header.samples)}")
+print(f"Contigs: {len(header.contigs)}")
+print(f"INFO fields: {len(header.info_fields)}")
+
+# Count variant types
+snps = 0
+indels = 0
+multi_allelic = 0
+high_quality = 0
+
+for variant in stream:
+    # Check quality
+    if variant.quality and variant.quality >= 30:
+        high_quality += 1
+
+    # Classify variant type
+    if variant.is_snp():
+        snps += 1
+        print(f"SNP: {variant.chrom}:{variant.pos} {variant.reference}→{variant.alternate[0]}")
+    elif variant.is_indel():
+        indels += 1
+        print(f"Indel: {variant.chrom}:{variant.pos} {variant.reference}→{variant.alternate[0]}")
+
+    if variant.is_multi_allelic():
+        multi_allelic += 1
+        print(f"  Multi-allelic: {len(variant.alternate)} alternate alleles")
+
+    # Access INFO fields
+    if 'DP' in variant.info:
+        print(f"  Depth: {variant.info['DP']}")
+
+print(f"\nVariant summary:")
+print(f"  SNPs: {snps}")
+print(f"  Indels: {indels}")
+print(f"  Multi-allelic: {multi_allelic}")
+print(f"  High quality (≥30): {high_quality}")
+```
+
+**Filtering Variants**:
+```python
+import biometal
+
+# Filter variants by quality and type
+stream = biometal.VcfStream.from_path("variants.vcf.gz")
+header = stream.header()
+
+output_file = open("filtered_snps.txt", "w")
+output_file.write("CHROM\tPOS\tREF\tALT\tQUAL\n")
+
+for variant in stream:
+    # Filter: high-quality SNPs only
+    if (variant.is_snp() and
+        variant.quality and variant.quality >= 30 and
+        variant.filter == "PASS"):
+
+        output_file.write(f"{variant.chrom}\t{variant.pos}\t")
+        output_file.write(f"{variant.reference}\t{variant.alternate[0]}\t{variant.quality}\n")
+
+output_file.close()
+```
+
+**Use Cases**:
+- Variant calling from sequencing data
+- Population genetics studies
+- GWAS analysis
+- Clinical variant interpretation
+
+---
+
+### GFF3 Format: Hierarchical Gene Annotations
+
+GFF3 (General Feature Format version 3) represents hierarchical gene structures.
+
+**Coordinate System**:
+- **1-based inclusive**: `[start, end]`
+- Both start and end positions are 1-indexed
+- Both positions are inclusive
+- Length = end - start + 1
+
+**Example**:
+```
+chr1    Ensembl    gene    1000    2000    .    +    .    ID=gene1;Name=BRCA1
+chr1    Ensembl    mRNA    1000    2000    .    +    .    ID=mRNA1;Parent=gene1
+chr1    Ensembl    exon    1000    1500    .    +    .    ID=exon1;Parent=mRNA1
+chr1    Ensembl    exon    1800    2000    .    +    .    ID=exon2;Parent=mRNA1
+```
+
+**Hierarchical Structure**:
+- Gene contains mRNA(s)
+- mRNA contains exon(s) and CDS
+- Parent-child relationships via ID/Parent attributes
+
+#### Parsing Gene Annotations
+
+**Python Example**:
+```python
+import biometal
+
+# Parse GFF3 annotations
+stream = biometal.Gff3Stream.from_path("annotations.gff3.gz")
+
+genes = {}
+exons = []
+cds_features = []
+
+for feature in stream:
+    if feature.feature_type == "gene":
+        gene_id = feature.get_id()
+        gene_name = feature.get_name()
+        length = feature.length()  # 1-based inclusive: end - start + 1
+
+        genes[gene_id] = {
+            'name': gene_name,
+            'chrom': feature.seqid,
+            'start': feature.start,
+            'end': feature.end,
+            'strand': feature.strand,
+            'length': length
+        }
+
+        print(f"Gene {gene_name} ({gene_id}):")
+        print(f"  Location: {feature.seqid}:{feature.start}-{feature.end}")
+        print(f"  Length: {length:,} bp")
+        print(f"  Strand: {feature.strand}")
+
+    elif feature.feature_type == "exon":
+        parent = feature.get_parent()
+        exons.append({
+            'parent': parent,
+            'start': feature.start,
+            'end': feature.end,
+            'length': feature.length()
+        })
+
+    elif feature.feature_type == "CDS":
+        parent = feature.get_parent()
+        phase = feature.phase  # Reading frame: 0, 1, or 2
+        cds_features.append({
+            'parent': parent,
+            'phase': phase,
+            'length': feature.length()
+        })
+
+print(f"\nAnnotation summary:")
+print(f"  Genes: {len(genes)}")
+print(f"  Exons: {len(exons)}")
+print(f"  CDS: {len(cds_features)}")
+```
+
+#### Coordinate Conversion: GFF3 → BED
+
+**Python Example**:
+```python
+import biometal
+
+# Convert GFF3 genes to BED format
+stream = biometal.Gff3Stream.from_path("genes.gff3.gz")
+
+output = open("genes.bed", "w")
+
+for feature in stream:
+    if feature.feature_type == "gene":
+        # Get GFF3 coordinates (1-based inclusive)
+        gff_start = feature.start
+        gff_end = feature.end
+        gff_length = feature.length()  # end - start + 1
+
+        # Convert to BED coordinates (0-based half-open)
+        # BED start = GFF start - 1
+        # BED end = GFF end (unchanged)
+        bed_start = gff_start - 1  # Subtract 1
+        bed_end = gff_end          # Unchanged
+
+        # Verify length preservation
+        bed_length = bed_end - bed_start  # end - start
+        assert gff_length == bed_length, "Length mismatch!"
+
+        # Write BED6 format
+        gene_name = feature.get_name() or feature.get_id()
+        output.write(f"{feature.seqid}\t{bed_start}\t{bed_end}\t")
+        output.write(f"{gene_name}\t0\t{feature.strand}\n")
+
+output.close()
+```
+
+**Use Cases**:
+- Gene structure analysis
+- Transcript isoform identification
+- Regulatory element mapping
+- RNA-seq quantification
+
+---
+
+### Coordinate System Conversions
+
+Different formats use different coordinate systems. Understanding these is critical for correctness.
+
+#### Coordinate System Comparison
+
+| Format | System | Start | End | Length Formula | Example |
+|--------|--------|-------|-----|----------------|---------|
+| **BED** | 0-based half-open | Inclusive | Exclusive | end - start | [1000, 2000) = 1000 bp |
+| **GFF3** | 1-based inclusive | Inclusive | Inclusive | end - start + 1 | [1000, 2000] = 1001 bp |
+| **VCF** | 1-based position | Position only | N/A | len(REF) | POS=1000, REF=A = 1 bp |
+
+#### BED ↔ GFF3 Conversion
+
+**GFF3 to BED** (1-based inclusive → 0-based half-open):
+```python
+# GFF3: [1000, 2000] (1-based inclusive, length = 1001 bp)
+gff_start = 1000
+gff_end = 2000
+gff_length = gff_end - gff_start + 1  # 1001 bp
+
+# BED: [999, 2000) (0-based half-open, length = 1001 bp)
+bed_start = gff_start - 1  # 999 (subtract 1 from start)
+bed_end = gff_end          # 2000 (end unchanged)
+bed_length = bed_end - bed_start  # 1001 bp
+
+assert gff_length == bed_length  # ✓ Length preserved
+```
+
+**BED to GFF3** (0-based half-open → 1-based inclusive):
+```python
+# BED: [999, 2000) (0-based half-open, length = 1001 bp)
+bed_start = 999
+bed_end = 2000
+bed_length = bed_end - bed_start  # 1001 bp
+
+# GFF3: [1000, 2000] (1-based inclusive, length = 1001 bp)
+gff_start = bed_start + 1  # 1000 (add 1 to start)
+gff_end = bed_end          # 2000 (end unchanged)
+gff_length = gff_end - gff_start + 1  # 1001 bp
+
+assert bed_length == gff_length  # ✓ Length preserved
+```
+
+**Manual Conversion in Python**:
+```python
+import biometal
+
+# GFF3 → BED (manual conversion)
+stream = biometal.Gff3Stream.from_path("genes.gff3.gz")
+
+for feature in stream:
+    if feature.feature_type == "gene":
+        # GFF3 coordinates (1-based inclusive)
+        gff_length = feature.length()  # end - start + 1
+        print(f"GFF3: {feature.start}-{feature.end} (length: {gff_length})")
+
+        # Convert to BED coordinates (0-based half-open)
+        bed_start = feature.start - 1  # Subtract 1
+        bed_end = feature.end          # Unchanged
+        bed_length = bed_end - bed_start  # end - start
+
+        print(f"BED:  {bed_start}-{bed_end} (length: {bed_length})")
+
+        # Lengths should match
+        assert gff_length == bed_length
+```
+
+---
+
+### Format-Specific Best Practices
+
+#### BED Files
+
+**✅ DO**:
+- Use BED3 for simple intervals
+- Use BED6 when you need scores/strands
+- Keep scores in 0-1000 range (UCSC spec)
+- Use tab delimiters (not spaces)
+
+**❌ DON'T**:
+- Don't use 1-based coordinates (BED is 0-based)
+- Don't make end < start (invalid interval)
+- Don't use score > 1000 (violates spec)
+
+**Example**:
+```python
+import biometal
+
+# ✓ GOOD: Stream BED6 peaks
+stream = biometal.Bed6Stream.from_path("peaks.bed.gz")
+for record in stream:
+    if record.score and record.score >= 500:
+        length = record.length()
+        print(f"{record.chrom}:{record.start}-{record.end} ({length} bp)")
+
+# ✗ BAD: Loading all peaks into memory
+stream = biometal.Bed6Stream.from_path("peaks.bed.gz")
+records = []
+for record in stream:
+    records.append(record)  # Accumulates in RAM!
+```
+
+#### GFA Files
+
+**✅ DO**:
+- Validate segment sequences (ACGT only)
+- Check that links reference existing segments
+- Use length tags (LN) for metadata
+
+**❌ DON'T**:
+- Don't assume segments appear before links
+- Don't modify segment names (breaks graph structure)
+
+**Example**:
+```python
+import biometal
+
+# Build segment index for validation
+segments = {}
+stream = biometal.GfaStream.from_path("assembly.gfa")
+for record in stream:
+    if isinstance(record, biometal.GfaSegment):
+        segments[record.name] = record
+
+# Now validate links
+stream2 = biometal.GfaStream.from_path("assembly.gfa")
+for record in stream2:
+    if isinstance(record, biometal.GfaLink):
+        # Check both segments exist
+        assert record.from_segment in segments, f"Unknown segment: {record.from_segment}"
+        assert record.to_segment in segments, f"Unknown segment: {record.to_segment}"
+```
+
+#### VCF Files
+
+**✅ DO**:
+- Parse header before processing variants
+- Validate quality scores (≥0)
+- Check filter field for "PASS" variants
+- Use INFO fields for metadata
+
+**❌ DON'T**:
+- Don't assume all variants have quality scores
+- Don't ignore multi-allelic variants
+- Don't skip header (contains critical metadata)
+
+**Example**:
+```python
+import biometal
+
+stream = biometal.VcfStream.from_path("variants.vcf.gz")
+
+# ✓ GOOD: Get header
+header = stream.header()
+print(f"Samples: {header.samples}")
+
+# ✓ GOOD: Filter by quality and PASS filter
+for variant in stream:
+    if variant.filter == "PASS" and variant.quality and variant.quality >= 30:
+        process(variant)
+```
+
+#### GFF3 Files
+
+**✅ DO**:
+- Track ID/Parent relationships
+- Use convenience methods (get_id(), get_parent())
+- Convert coordinates when interfacing with BED
+- Handle features without parents (top-level genes)
+
+**❌ DON'T**:
+- Don't assume all features have parents
+- Don't mix up 1-based and 0-based coordinates
+- Don't skip features you don't recognize
+
+**Example**:
+```python
+import biometal
+
+# ✓ GOOD: Build parent-child map
+features = {}
+stream = biometal.Gff3Stream.from_path("genes.gff3.gz")
+for feature in stream:
+    feature_id = feature.get_id()
+    if feature_id:
+        features[feature_id] = feature
+
+# Now process children with parent lookups
+stream2 = biometal.Gff3Stream.from_path("genes.gff3.gz")
+for feature in stream2:
+    parent_id = feature.get_parent()
+    if parent_id and parent_id in features:
+        parent = features[parent_id]
+        print(f"{feature.feature_type} belongs to {parent.feature_type} {parent.get_name()}")
+```
+
+---
+
+### Streaming Architecture for All Formats
+
+All format parsers use biometal's streaming architecture for constant memory usage.
+
+**Memory Usage Validation**:
+```python
+import biometal
+import psutil
+import os
+
+process = psutil.Process(os.getpid())
+
+# Baseline memory
+baseline_mb = process.memory_info().rss / 1024 / 1024
+
+# Parse large GFF3 file (533 KB compressed, 61,547 features)
+stream = biometal.Gff3Stream.from_path("ensembl_chr21.gff3.gz")
+
+feature_count = 0
+for feature in stream:
+    feature_count += 1
+    # Record is immediately discarded after processing
+
+# Memory after parsing
+final_mb = process.memory_info().rss / 1024 / 1024
+memory_increase = final_mb - baseline_mb
+
+print(f"Features processed: {feature_count:,}")
+print(f"Memory increase: {memory_increase:.1f} MB")
+print(f"Expected: ~5 MB (constant, regardless of file size)")
+# Output: Memory increase: ~5 MB ✓
+```
+
+**Benefits**:
+- Process terabyte-scale annotation files on consumer hardware
+- No out-of-memory errors
+- Predictable performance
+- Enables network streaming
 
 ---
 

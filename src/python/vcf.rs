@@ -5,7 +5,21 @@ use crate::formats::vcf::{VcfHeader, VcfRecord, VcfParser};
 use crate::formats::TabDelimitedRecord;
 use std::collections::HashMap;
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::io::Read;
+use flate2::read::MultiGzDecoder;
+
+/// Helper function to open a file, detecting and handling gzip compression
+fn open_file(path: &Path) -> std::io::Result<Box<dyn Read>> {
+    let file = File::open(path)?;
+
+    // Check if file is gzipped by extension
+    if path.extension().and_then(|s| s.to_str()) == Some("gz") {
+        Ok(Box::new(MultiGzDecoder::new(file)))
+    } else {
+        Ok(Box::new(file))
+    }
+}
 
 /// VCF file header
 ///
@@ -222,7 +236,7 @@ impl From<VcfRecord> for PyVcfRecord {
 ///     >>> print(f"SNPs: {snps}, Indels: {indels}")
 #[pyclass(name = "VcfStream", unsendable)]
 pub struct PyVcfStream {
-    inner: Option<VcfParser<File>>,
+    inner: Option<VcfParser<Box<dyn Read>>>,
     header: Option<PyVcfHeader>,
 }
 
@@ -231,9 +245,9 @@ impl PyVcfStream {
     #[staticmethod]
     fn from_path(path: String) -> PyResult<Self> {
         let path_buf = PathBuf::from(path);
-        let file = File::open(&path_buf)
+        let reader = open_file(&path_buf)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
-        let mut parser = VcfParser::new(file);
+        let mut parser = VcfParser::new(reader);
 
         // Parse header immediately
         let header = parser

@@ -5,7 +5,21 @@ use crate::formats::bed::{Bed3Record, Bed6Record, Bed12Record};
 use crate::formats::primitives::Strand;
 use crate::formats::{TabDelimitedRecord, TabDelimitedParser};
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::io::Read;
+use flate2::read::MultiGzDecoder;
+
+/// Helper function to open a file, detecting and handling gzip compression
+fn open_file(path: &Path) -> std::io::Result<Box<dyn Read>> {
+    let file = File::open(path)?;
+
+    // Check if file is gzipped by extension
+    if path.extension().and_then(|s| s.to_str()) == Some("gz") {
+        Ok(Box::new(MultiGzDecoder::new(file)))
+    } else {
+        Ok(Box::new(file))
+    }
+}
 
 /// BED3 record (chrom, start, end)
 ///
@@ -320,7 +334,7 @@ impl From<Bed12Record> for PyBed12Record {
 ///     ...     print(f"{record.chrom}:{record.start}-{record.end}")
 #[pyclass(name = "Bed3Stream", unsendable)]
 pub struct PyBed3Stream {
-    inner: Option<TabDelimitedParser<File, Bed3Record>>,
+    inner: Option<TabDelimitedParser<Box<dyn Read>, Bed3Record>>,
 }
 
 #[pymethods]
@@ -328,9 +342,9 @@ impl PyBed3Stream {
     #[staticmethod]
     fn from_path(path: String) -> PyResult<Self> {
         let path_buf = PathBuf::from(path);
-        let file = File::open(&path_buf)
+        let reader = open_file(&path_buf)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
-        let parser = TabDelimitedParser::<File, Bed3Record>::new(file);
+        let parser = TabDelimitedParser::<Box<dyn Read>, Bed3Record>::new(reader);
 
         Ok(PyBed3Stream {
             inner: Some(parser),
@@ -371,7 +385,7 @@ impl PyBed3Stream {
 ///     ...     print(f"{record.name}: {record.chrom}:{record.start}-{record.end}")
 #[pyclass(name = "Bed6Stream", unsendable)]
 pub struct PyBed6Stream {
-    inner: Option<TabDelimitedParser<File, Bed6Record>>,
+    inner: Option<TabDelimitedParser<Box<dyn Read>, Bed6Record>>,
 }
 
 #[pymethods]
@@ -379,9 +393,9 @@ impl PyBed6Stream {
     #[staticmethod]
     fn from_path(path: String) -> PyResult<Self> {
         let path_buf = PathBuf::from(path);
-        let file = File::open(&path_buf)
+        let reader = open_file(&path_buf)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
-        let parser = TabDelimitedParser::<File, Bed6Record>::new(file);
+        let parser = TabDelimitedParser::<Box<dyn Read>, Bed6Record>::new(reader);
 
         Ok(PyBed6Stream {
             inner: Some(parser),
@@ -422,7 +436,7 @@ impl PyBed6Stream {
 ///     ...     print(f"{record.name}: {record.block_count} exons")
 #[pyclass(name = "Bed12Stream", unsendable)]
 pub struct PyBed12Stream {
-    inner: Option<TabDelimitedParser<File, Bed12Record>>,
+    inner: Option<TabDelimitedParser<Box<dyn Read>, Bed12Record>>,
 }
 
 #[pymethods]
@@ -430,9 +444,9 @@ impl PyBed12Stream {
     #[staticmethod]
     fn from_path(path: String) -> PyResult<Self> {
         let path_buf = PathBuf::from(path);
-        let file = File::open(&path_buf)
+        let reader = open_file(&path_buf)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
-        let parser = TabDelimitedParser::<File, Bed12Record>::new(file);
+        let parser = TabDelimitedParser::<Box<dyn Read>, Bed12Record>::new(reader);
 
         Ok(PyBed12Stream {
             inner: Some(parser),

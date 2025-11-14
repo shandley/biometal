@@ -1,9 +1,9 @@
 # biometal: Claude Development Guide
 
 **Project**: biometal - ARM-native bioinformatics library
-**Latest Release**: v1.7.0 (November 13, 2025)
-**Current Focus**: Strategic planning - Phase 2 direction TBD (see STRATEGIC_PIVOT_PLAN.md)
-**Research Status**: Apple Silicon archived (Nov 4-13), Rules 3+4 found non-viable (see RULES_3_4_REALITY_CHECK.md)
+**Latest Release**: v1.8.0 (November 13, 2025)
+**Current Focus**: Format library expansion (BED, GFA, VCF, GFF3 parsers with Python support)
+**Phase**: Phase 2 Format Library Sprint - Week 1 complete (4 formats shipped, 860 tests passing)
 
 ---
 
@@ -66,92 +66,19 @@ Platform priority: Mac ARM → Linux ARM (Graviton) → x86_64 fallback
 ---
 
 
-## Recent Research: Apple Silicon Exploration (Archived)
+## Recent Research
 
-**Period**: November 4-13, 2025 (2 weeks)
-**Location**: research/apple-silicon/
-**Status**: ✅ Archived - Returning to core roadmap
-
-### What Was Built
-
-**Neural Engine (Week 1)**:
-- ✅ Complete ONNX Runtime + CoreML integration
-- ✅ Quality prediction model (PyTorch → ONNX → CoreML)
-- ❌ Result: 2,940× **slowdown** for streaming use case
-- **Finding**: Neural Engine optimized for batch inference, not per-read streaming
-
-**GPU Smith-Waterman (Week 2)**:
-- ✅ Metal compute shader (340 lines)
-- ✅ Rust GPU dispatch (430 lines)
-- ✅ All tests passing (430 tests)
-- ⚠️ Result: 1.2-1.4× speedup for batches ≥10
-- **Finding**: Modest gains vs 10-50× from literature (needs anti-diagonal parallelization)
-
-### Strategic Decision (November 13, 2025)
-
-**Decision**: Archive Apple Silicon research
-
-**Rationale**:
-- Apple Silicon (batch-oriented) vs biometal's streaming-first architecture = poor fit
-- Modest results: Neural Engine (2,940× slowdown), GPU (1.2-1.4× speedup)
-- Platform-specific (Mac-only) breaks cross-platform promise
-- **Better path**: Focus on cross-platform, evidence-based features
-
-**Critical Discovery (Same Day)**:
-After archiving Apple Silicon, reviewed OPTIMIZATION_RULES.md and discovered:
-- ❌ Rule 3 (Parallel BGZF): **DISABLED** (0.77-0.84× slowdown, not 6.5× speedup)
-- ⚠️ Rule 4 (Smart mmap): **~1% benefit** (not 2.5×, CPU-bound workload)
-- **Result**: Original Phase 2 plan (Rules 3+4 for 16×) is invalid
-
-**See**: RULES_3_4_REALITY_CHECK.md for full analysis, STRATEGIC_PIVOT_PLAN.md for options
-
-### Lessons Learned
-
-1. **Hardware-software fit matters**: Neural Engine/GPU excel at batch processing, not streaming
-2. **Read documentation carefully**: Summary tables can be outdated, check detailed sections
-3. **Context-dependent optimizations**: Entry 029's 6.5× works for unbounded memory, not streaming
-4. **Platform-specific code has costs**: Breaks portability, smaller user base
-5. **Amdahl's Law applies**: 2.5× I/O speedup on 1.3% of time = ~1% overall
-
-**Value Preserved**:
-- ✅ Infrastructure reusable for future use cases (adapter detection, variant calling)
-- ✅ Code quality demonstrates capabilities (all production-ready)
-- ✅ GPU available via feature flag (`--features gpu`)
-
-**Status**: Archived November 13, 2025. See research/apple-silicon/RESEARCH_SUMMARY.md for full analysis.
+### Apple Silicon Exploration (November 4-13, 2025) - [Full Report](docs/archive/2025-11/apple-silicon-research.md)
+Explored Neural Engine and GPU acceleration for bioinformatics workloads. Results: 1.2-1.4× speedup for GPU batch processing, 2,940× slowdown for Neural Engine streaming. Finding: Architectural mismatch between batch-oriented hardware and streaming-first design. Status: Archived to research/apple-silicon/ (infrastructure preserved, feature-gated).
 
 ---
 
-## Recent Optimization: Compression Backend (v1.7.0)
-
-**Period**: November 12-13, 2025
-**Location**: BACKEND_COMPARISON_FINDINGS.md, COMPRESSION_INVESTIGATION_FINDINGS.md
-**Status**: ✅ COMPLETE - Production deployed
-
-### What Was Achieved
-- Comprehensive backend comparison (rust_backend, zlib-ng, cloudflare_zlib)
-- cloudflare_zlib delivers best performance (1.67× decompression, 2.29× compression)
-- Public compression API with configurable levels (fast/default/best)
-- All 411 tests passing, production-ready
-
-### Performance Impact
-- **BAM parsing**: 55 MiB/s → 92 MiB/s (+67% improvement)
-- **Decompression**: 1.67× faster vs rust_backend (miniz_oxide)
-- **Compression (default)**: 64 MB/s (2.29× vs rust_backend)
-- **Compression (fast)**: 358 MB/s (5.6× vs default)
-- **Compression is now faster than decompression** (358 MB/s vs 290 MB/s in fast mode)
-
-### Key Findings
-- cloudflare_zlib 3-7% faster than zlib-ng (consistent across file sizes)
-- Fast compression mode only 3-5% larger files (minimal quality penalty)
-- Best compression mode (1.2× slower than default) provides 5-10% smaller files
-- Performance scales linearly across file sizes (5MB → 544MB)
-
-**Status**: Full details in BACKEND_COMPARISON_FINDINGS.md and COMPRESSION_INVESTIGATION_FINDINGS.md
+### Compression Optimization (v1.7.0) - [Details](docs/archive/2025-11/compression-optimization.md)
+Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression speedup. BAM parsing improved: 55 MiB/s → 92 MiB/s (+67%). See [planning_archive/investigations/BACKEND_COMPARISON_FINDINGS.md](planning_archive/investigations/BACKEND_COMPARISON_FINDINGS.md) for full analysis.
 
 ---
 
-## Current Status (v1.7.0)
+## Current Status (v1.8.0)
 
 ### Released Features
 - **FASTQ/FASTA** streaming parsers (constant memory)
@@ -165,10 +92,19 @@ After archiving Apple Silicon, reviewed OPTIMIZATION_RULES.md and discovered:
   - SAM writing for downstream tools
   - Robustness features (oversized CIGAR, malformed record handling)
   - 70 tests passing (integration complete)
-- **Python bindings** (PyO3 0.27, 40+ functions)
+- **Python bindings** (PyO3 0.27, 60+ functions)
   - Full BAM/FASTQ/FASTA support
   - CIGAR operations, SAM writing
-- **Tests**: 347 passing (260 library + 87 doc)
+  - BED, GFA, VCF, GFF3 format support
+- **Format Library (v1.8.0)**: Production-ready parsers for genomic annotation and assembly formats
+  - **BED (Browser Extensible Data)**: Genomic intervals (BED3/6/12 support)
+  - **GFA (Graphical Fragment Assembly)**: Assembly graphs (Segment/Link/Path records)
+  - **VCF (Variant Call Format)**: Genetic variants (VCF 4.2 spec compliance)
+  - **GFF3 (General Feature Format)**: Hierarchical gene annotations
+  - **Python gzip support**: All 4 formats support `.gz` files in Python
+  - **Property-based testing**: 23 tests validating format invariants
+  - **Real-world validation**: 6 integration tests with ENCODE, UCSC, Ensembl, 1000 Genomes data
+- **Tests**: 860 passing (649 unit + 211 doc + 23 property-based + 6 real-world integration)
 
 ### Optimization Rules Implemented
 
@@ -186,60 +122,44 @@ After archiving Apple Silicon, reviewed OPTIMIZATION_RULES.md and discovered:
 **Rule 4**: Minimal benefit (~1%) for CPU-bound decompression workloads
 
 ### Distribution
-- **PyPI**: biometal-rs v1.4.0 (pip install biometal-rs)
-- **crates.io**: biometal v1.4.0 (cargo add biometal)
+- **PyPI**: biometal-rs v1.8.0 (pip install biometal-rs)
+- **crates.io**: biometal v1.8.0 (cargo add biometal)
 
 ---
 
 
-## Current Work: Strategic Planning
+## Current Work: Phase 2 Format Library Sprint
 
-**Status**: ⚠️ **PLANNING PHASE** - Phase 2 direction requires decision
+**Status**: ✅ **Week 1 Complete** - 4 formats shipped in v1.8.0
 
-**Context**:
-- ✅ Phase 1 (Consolidation) complete - 4 weeks, 23 deliverables
-- ✅ Apple Silicon research complete - Archived (modest results)
-- ❌ Original Phase 2 plan (Rules 3+4) found non-viable
-- ⏳ Strategic direction needed
+### Completed (v1.8.0)
+- ✅ BED format (BED3/6/12 variants, genomic intervals)
+- ✅ GFA format (assembly graphs, Segment/Link/Path)
+- ✅ VCF format (VCF 4.2 spec, variant calling)
+- ✅ GFF3 format (hierarchical gene annotations)
+- ✅ Python gzip support for all 4 formats
+- ✅ Property-based testing framework (23 tests)
+- ✅ Real-world data validation (6 integration tests)
 
-**See**: STRATEGIC_PIVOT_PLAN.md for detailed options
+### In Progress
+- Format utilities (FAI, TBI indices) - Week 2-3
+- Additional formats (GTF, PAF, narrowPeak) - Week 4-8
+- Cross-format integration and examples - Week 9-12
+- Python enhancements and v2.0.0 release - Week 13-16
 
-### What Happened
+### Strategic Context
 
-**Phase 1 (✅ COMPLETE)**:
-- Documentation (40,000+ words), benchmarking, community prep, quality assurance
-- Result: Production-ready, competitively validated
+**Decision Made**: Format Library Expansion (STRATEGIC_PIVOT_PLAN.md Option 1)
+- Build useful bioinformatics primitives with proven Apple Silicon optimizations
+- Focus on streaming architecture (constant memory) + ARM NEON acceleration
+- Evidence-based design (all optimizations validated via apple-silicon-bio-bench)
 
-**Apple Silicon Exploration (✅ COMPLETE - Archived)**:
-- Neural Engine: 2,940× slowdown (batch-oriented vs streaming mismatch)
-- GPU Smith-Waterman: 1.2-1.4× speedup (modest gains)
-- Result: Archived to research/apple-silicon/
+**Historical Context**:
+- Phase 1 consolidation complete (documentation, benchmarking, quality)
+- Apple Silicon research complete (modest results, archived)
+- Rules 3+4 found non-viable for streaming architecture
 
-**Rules 3+4 Investigation (✅ COMPLETE - Non-Viable)**:
-- Rule 3 (Parallel BGZF): 0.77-0.84× **slowdown** (conflicts with streaming)
-- Rule 4 (Smart mmap): ~1% benefit (CPU-bound workload, Amdahl's Law)
-- Result: Original Phase 2 plan invalid
-
-### Strategic Options
-
-**See STRATEGIC_PIVOT_PLAN.md for full analysis**. Summary:
-
-**Option 1**: Feature Expansion (CRAM, VCF, CSI, Python) - 12-16 weeks
-**Option 2**: Community Building + Adoption - 6-9 weeks
-**Option 3**: Quality + Optimization Polish (Rule 4 ~1%) - 4-8 weeks
-**Option 4**: Strategic Pause (maintenance mode)
-
-**Recommendation**: Option 1+2 (Feature Expansion + Community)
-
-### Current Performance (v1.7.0)
-
-biometal is **already fast** and **already differentiated**:
-- BAM parsing: 92 MiB/s (competitive with samtools)
-- Indexed queries: 1.68-500× speedup (superior)
-- Memory: Constant 5 MB (10-200× advantage)
-- ARM NEON: 16-25× speedup (exclusive)
-
-**No major performance optimizations remain** - focus on features and adoption.
+**See**: [PHASE2_FORMAT_LIBRARY_SPRINT.md](PHASE2_FORMAT_LIBRARY_SPRINT.md) for detailed 16-week plan
 
 ---
 
@@ -402,15 +322,20 @@ criterion_main!(benches);
 - ✅ FASTQ, FASTA (v1.0.0)
 - ✅ BAM, SAM (v1.4.0)
 - ✅ BAI index (v1.6.0)
-- ⏳ CSI index (partial)
-- ❌ CRAM, VCF, BCF (future)
+- ✅ BED (BED3/6/12) (v1.8.0)
+- ✅ GFA (Segment/Link/Path) (v1.8.0)
+- ✅ VCF (VCF 4.2) (v1.8.0)
+- ✅ GFF3 (hierarchical annotations) (v1.8.0)
+- ⏳ FAI, TBI indices (Phase 2 Week 2-3)
+- ⏳ GTF, PAF, narrowPeak (Phase 2 Week 4-8)
+- ❌ CRAM, BCF (future)
 
 ### Tests
-- **582 passing** (100% pass rate)
-  - 354 library tests
-  - 81 BAM tests
-  - 26 BAI Python tests
-  - 121 documentation tests
+- **860 passing** (100% pass rate)
+  - 649 unit tests (core + formats)
+  - 211 documentation tests
+  - 23 property-based tests (format invariants)
+  - 6 real-world integration tests (ENCODE, UCSC, Ensembl, 1000 Genomes)
 
 ---
 
@@ -438,6 +363,6 @@ When wrapping up:
 
 ---
 
-**Last Updated**: November 13, 2025 (Phase 1 complete, strategic planning phase)
-**Current Status**: Awaiting Phase 2 direction decision (see STRATEGIC_PIVOT_PLAN.md)
-**Strategic Options**: Feature expansion, community building, or quality polish
+**Last Updated**: November 14, 2025 (Phase 2 Week 1 complete, v1.8.0 released)
+**Current Phase**: Phase 2 Format Library Sprint (4 formats shipped, 12-15 weeks remaining)
+**Next Milestone**: Format utilities (FAI, TBI indices) - Week 2-3

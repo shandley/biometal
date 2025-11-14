@@ -6,7 +6,21 @@ use crate::formats::primitives::Strand;
 use crate::formats::TabDelimitedRecord;
 use std::collections::HashMap;
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::io::Read;
+use flate2::read::MultiGzDecoder;
+
+/// Helper function to open a file, detecting and handling gzip compression
+fn open_file(path: &Path) -> std::io::Result<Box<dyn Read>> {
+    let file = File::open(path)?;
+
+    // Check if file is gzipped by extension
+    if path.extension().and_then(|s| s.to_str()) == Some("gz") {
+        Ok(Box::new(MultiGzDecoder::new(file)))
+    } else {
+        Ok(Box::new(file))
+    }
+}
 
 /// GFF3 feature record
 ///
@@ -176,7 +190,7 @@ impl From<Gff3Record> for PyGff3Record {
 ///     ...             print(f"Transcript {record.get_name()} belongs to gene {gene.get_name()}")
 #[pyclass(name = "Gff3Stream", unsendable)]
 pub struct PyGff3Stream {
-    inner: Option<Gff3Parser<File>>,
+    inner: Option<Gff3Parser<Box<dyn Read>>>,
 }
 
 #[pymethods]
@@ -184,9 +198,9 @@ impl PyGff3Stream {
     #[staticmethod]
     fn from_path(path: String) -> PyResult<Self> {
         let path_buf = PathBuf::from(path);
-        let file = File::open(&path_buf)
+        let reader = open_file(&path_buf)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
-        let parser = Gff3Parser::new(file);
+        let parser = Gff3Parser::new(reader);
 
         Ok(PyGff3Stream {
             inner: Some(parser),
