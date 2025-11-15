@@ -16,23 +16,47 @@ exclude = [
     "tests/data/large/",
     "tests/data/synthetic_100k.bam",
     "tests/data/synthetic_100k.bam.bai",
+    "tests/data/real_world/",
 
     # Experiments and research (not needed for package)
     "experiments/",
+    "research/",
+
+    # Claude Code configuration and agents
+    ".claude/",
+
+    # GitHub configuration
+    ".github/",
 
     # Planning and session documents
     "BAI_PERFORMANCE_FINDINGS.md",
+    "BACKEND_COMPARISON_FINDINGS.md",
+    "COMPRESSION_INVESTIGATION_FINDINGS.md",
     "CURRENT_STATUS_AND_RECOMMENDATIONS.md",
+    "DOCUMENTATION_CLEANUP_COMPLETE.md",
+    "DOCUMENTATION_CLEANUP_REPORT.md",
     "NEXT_SESSION.md",
     "NEXT_STEPS_ANALYSIS.md",
     "PHASE1_PROGRESS_REPORT.md",
+    "PHASE2_FORMAT_LIBRARY_SPRINT.md",
+    "PHASE2_WEEK1_PLAN.md",
+    "PLANNING_INDEX.md",
+    "PROJECT_TODOS.md",
+    "PROPERTY_BASED_TESTING.md",
     "PYTHON_BAI_TEST_RESULTS.md",
+    "REPOSITORY_SIZE_INVESTIGATION.md",
     "SESSION_SUMMARY_*.md",
+    "STRATEGIC_PIVOT_PLAN.md",
     "TEST_SESSION_FINDINGS.md",
     "WEEK3_SUMMARY.md",
+    "CI_CD_SOLO_DEV_ANALYSIS.md",
+    "planning_archive/",
+    "projects/",
 
     # Benchmark results (not source)
     "benchmarks/comparison/results_*/",
+    "benchmarks/comparison/*.md",
+    "benchmarks/comparison/*.sh",
 
     # Notebooks (Python package only)
     "notebooks/",
@@ -47,6 +71,14 @@ exclude = [
     "venv/",
     ".venv/",
     "tests/python/.venv-test/",
+
+    # Documentation (only keep essential)
+    "docs/",
+
+    # Other development files
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "FAQ.md",
 ]
 
 [dependencies]
