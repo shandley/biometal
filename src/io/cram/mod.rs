@@ -1431,6 +1431,176 @@ impl CramFeature {
 
         Ok(sequence)
     }
+
+    /// Build CIGAR string from features.
+    ///
+    /// CIGAR operations are derived from CRAM features:
+    /// - M (match/mismatch): Default alignment to reference
+    /// - I (insertion): From Insertion/InsertBase features
+    /// - D (deletion): From Deletion features
+    /// - N (reference skip): From ReferenceSkip features
+    /// - S (soft clip): From SoftClip features
+    /// - H (hard clip): From HardClip features
+    /// - P (padding): From Padding features
+    ///
+    /// # Arguments
+    /// * `features` - List of features for this read
+    /// * `read_length` - Length of the read sequence
+    /// * `reference_length` - Length covered on reference
+    ///
+    /// # Returns
+    /// CIGAR string (e.g., "100M", "50M2I48M")
+    pub fn build_cigar(
+        features: &[Self],
+        read_length: usize,
+        reference_length: usize,
+    ) -> String {
+        if features.is_empty() {
+            // No features = perfect match to reference
+            return format!("{}M", read_length);
+        }
+
+        let mut cigar_ops: Vec<(usize, char)> = Vec::new();
+        let mut current_pos = 0;
+
+        // Sort features by position
+        let mut sorted_features: Vec<_> = features.iter().collect();
+        sorted_features.sort_by_key(|f| match f {
+            Self::Substitution { position, .. } => *position,
+            Self::Insertion { position, .. } => *position,
+            Self::Deletion { position, .. } => *position,
+            Self::ReferenceSkip { position, .. } => *position,
+            Self::SoftClip { position, .. } => *position,
+            Self::HardClip { position, .. } => *position,
+            Self::Padding { position, .. } => *position,
+            Self::InsertBase { position, .. } => *position,
+            Self::ReadBase { position, .. } => *position,
+            Self::Bases { position, .. } => *position,
+            Self::QualityScore { position, .. } => *position,
+            Self::Scores { position, .. } => *position,
+        });
+
+        for feature in sorted_features {
+            match feature {
+                Self::HardClip { position, length } => {
+                    // Hard clip at start or end
+                    let pos = *position as usize;
+                    if pos == 0 {
+                        cigar_ops.push((*length as usize, 'H'));
+                    } else {
+                        // Hard clip at end - will be added at end
+                        cigar_ops.push((*length as usize, 'H'));
+                    }
+                }
+                Self::SoftClip { position, bases } => {
+                    let pos = *position as usize;
+                    // Add match up to soft clip
+                    if pos > current_pos {
+                        cigar_ops.push((pos - current_pos, 'M'));
+                    }
+                    cigar_ops.push((bases.len(), 'S'));
+                    current_pos = pos + bases.len();
+                }
+                Self::Insertion { position, bases } => {
+                    let pos = *position as usize;
+                    // Add match up to insertion
+                    if pos > current_pos {
+                        cigar_ops.push((pos - current_pos, 'M'));
+                    }
+                    cigar_ops.push((bases.len(), 'I'));
+                    current_pos = pos;
+                }
+                Self::InsertBase { position, .. } => {
+                    let pos = *position as usize;
+                    // Add match up to insertion
+                    if pos > current_pos {
+                        cigar_ops.push((pos - current_pos, 'M'));
+                    }
+                    cigar_ops.push((1, 'I'));
+                    current_pos = pos;
+                }
+                Self::Deletion { position, length } => {
+                    let pos = *position as usize;
+                    // Add match up to deletion
+                    if pos > current_pos {
+                        cigar_ops.push((pos - current_pos, 'M'));
+                    }
+                    cigar_ops.push((*length as usize, 'D'));
+                    current_pos = pos;
+                }
+                Self::ReferenceSkip { position, length } => {
+                    let pos = *position as usize;
+                    // Add match up to skip
+                    if pos > current_pos {
+                        cigar_ops.push((pos - current_pos, 'M'));
+                    }
+                    cigar_ops.push((*length as usize, 'N'));
+                    current_pos = pos;
+                }
+                Self::Padding { position, length } => {
+                    let pos = *position as usize;
+                    // Add match up to padding
+                    if pos > current_pos {
+                        cigar_ops.push((pos - current_pos, 'M'));
+                    }
+                    cigar_ops.push((*length as usize, 'P'));
+                    current_pos = pos;
+                }
+                Self::Substitution { position, .. } => {
+                    // Substitutions are still 'M' in CIGAR (match or mismatch)
+                    let pos = *position as usize;
+                    if pos >= current_pos {
+                        current_pos = pos + 1;
+                    }
+                }
+                Self::ReadBase { position, .. } => {
+                    // Read bases are 'M' in CIGAR
+                    let pos = *position as usize;
+                    if pos >= current_pos {
+                        current_pos = pos + 1;
+                    }
+                }
+                Self::Bases { position, bases } => {
+                    // Explicit bases are 'M' in CIGAR
+                    let pos = *position as usize;
+                    if pos >= current_pos {
+                        current_pos = pos + bases.len();
+                    }
+                }
+                Self::QualityScore { .. } | Self::Scores { .. } => {
+                    // Quality scores don't affect CIGAR
+                }
+            }
+        }
+
+        // Add remaining match to end of read
+        if current_pos < read_length {
+            cigar_ops.push((read_length - current_pos, 'M'));
+        }
+
+        // Merge consecutive operations of the same type
+        let mut merged: Vec<(usize, char)> = Vec::new();
+        for (length, op) in cigar_ops {
+            if let Some((last_len, last_op)) = merged.last_mut() {
+                if *last_op == op {
+                    *last_len += length;
+                    continue;
+                }
+            }
+            merged.push((length, op));
+        }
+
+        // Build CIGAR string
+        if merged.is_empty() {
+            format!("{}M", read_length)
+        } else {
+            merged
+                .iter()
+                .map(|(len, op)| format!("{}{}", len, op))
+                .collect::<Vec<_>>()
+                .join("")
+        }
+    }
 }
 
 /// CRAM slice (header + blocks).
