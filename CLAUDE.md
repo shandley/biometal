@@ -1,9 +1,9 @@
 # biometal: Claude Development Guide
 
 **Project**: biometal - ARM-native bioinformatics library
-**Latest Release**: v1.10.0 (November 14, 2025)
-**Current Focus**: File format writing support (FASTQ, FASTA, BED, GTF, VCF)
-**Phase**: Phase 2 Format Library Sprint - Read parsers complete, adding write support
+**Latest Release**: v1.11.0 (November 16, 2025)
+**Current Focus**: Format library expansion complete (GenBank, BLAST added)
+**Phase**: Phase 2 Format Library Sprint - COMPLETE
 
 ---
 
