@@ -122,12 +122,16 @@ Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression sp
   - Streaming architecture (constant ~5 MB memory)
   - 46 CRAM tests passing, validated with 30K+ real-world records
   - ARM NEON optimizations (9× base counting, ~10% overall parsing improvement)
-- **Python bindings** (PyO3 0.27, 100+ functions)
-  - Full BAM/FASTQ/FASTA support
-  - CIGAR operations, SAM writing
-  - BED, GFA, VCF, GFF3, GTF, PAF, narrowPeak support
-  - FAI and TBI index support
-- **Format Library (READ-ONLY)**: Production-ready streaming parsers
+- **Python bindings** (PyO3 0.27, 100+ functions, **complete format coverage**)
+  - **READ + WRITE**: FASTQ, FASTA, BAM, SAM, BED (3/6/12 + narrowPeak), GFA, VCF, GFF3, GTF, PAF
+  - **READ only**: CRAM (Python bindings pending, Rust ready)
+  - CIGAR operations, BAM/SAM headers, tags
+  - Index support (BAI, CSI, FAI, TBI) with region queries
+  - Statistics functions (coverage, insert size, MAPQ, edit distance, strand bias)
+  - Sequence operations (reverse complement, trimming, masking, validation)
+  - K-mer operations (extraction, minimizers, spectrum)
+  - PyO3 registration bug resolved (Nov 16, 2025) - BamWriter, SamReader, GfaWriter now working
+- **Format Library (READ + WRITE)**: Production-ready streaming parsers and writers
   - **BED (BED3/6/12 + narrowPeak)**: Genomic intervals and ChIP-seq peaks (v1.8.0, v1.10.0)
   - **GFA (Graphical Fragment Assembly)**: Assembly graphs (v1.8.0)
   - **VCF (Variant Call Format)**: Genetic variants, VCF 4.2 spec (v1.8.0)
@@ -137,6 +141,7 @@ Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression sp
   - **Python optimizations**: 50-60% memory reduction per record (v1.10.0)
   - **Property-based testing**: 23 tests validating format invariants
   - **Real-world validation**: 6 integration tests with ENCODE, UCSC, Ensembl, 1000 Genomes
+  - **Writer support**: All formats support streaming write with compression (Nov 16, 2025)
 - **Index Support (v1.9.0)**: Efficient random access
   - **FAI (FASTA Index)**: O(1) sequence/region access, samtools-compatible
   - **TBI (Tabix Index)**: O(log n) region queries on BGZF files (VCF, BED, GFF3)
@@ -186,13 +191,15 @@ Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression sp
 - ✅ Real-world validation (6 integration tests) - v1.8.0
 
 ### WRITE Support Progress
-- ✅ FASTQ/FASTA writing - Complete (v1.9.0)
-- ✅ BED writing (BED3/6/12 + narrowPeak) - **Complete (Nov 16, 2025)**
-- ✅ GFF3 writing - **Complete (Nov 16, 2025)**
-- ✅ GTF writing - **Complete (Nov 16, 2025)**
-- ⏳ Python bindings for BED/GFF3/GTF writers - Next priority
-- ⏳ VCF writing (optional) - Future consideration
-- ⏳ BAM writing (optional) - Evaluate need
+- ✅ FASTQ/FASTA writing - Complete (v1.9.0) + Python bindings
+- ✅ BED writing (BED3/6/12 + narrowPeak) - Complete (Nov 16, 2025) + Python bindings
+- ✅ GFF3 writing - Complete (Nov 16, 2025) + Python bindings
+- ✅ GTF writing - Complete (Nov 16, 2025) + Python bindings
+- ✅ VCF writing - Complete (existing) + Python bindings
+- ✅ PAF writing - Complete (existing) + Python bindings
+- ✅ GFA writing - Complete (existing) + Python bindings
+- ✅ BAM writing - Complete (existing) + Python bindings (fixed Nov 16, 2025)
+- ✅ SAM writing - Complete (existing) + Python bindings (fixed Nov 16, 2025)
 
 ### Strategic Context
 
@@ -242,15 +249,55 @@ All three writers follow identical biometal patterns:
 
 ---
 
+## Recent Fix: PyO3 Registration Bug Resolved (November 16, 2025)
+
+**✅ RESOLVED**: Fixed PyO3 registration bug affecting 3 Python classes (commit edca698)
+
+### Issue
+Three Python classes were failing to register despite correct annotations:
+- `BamWriter` - BAM file writing
+- `SamReader` - SAM file reading
+- `GfaWriter` - GFA file writing
+
+All compiled successfully but symbols were missing from `.so` file.
+
+### Root Cause
+Type error in `src/python/gtf.rs` line 126 preventing PyO3 linking:
+```rust
+// BEFORE (incorrect):
+fn transcript_id(&self) -> String {
+    self.inner.transcript_id().to_string()  // Error: Option<&str> has no to_string()
+}
+
+// AFTER (correct):
+fn transcript_id(&self) -> Option<String> {
+    self.inner.transcript_id().map(|s| s.to_string())
+}
+```
+
+### Impact
+- ✅ All 3 classes now fully functional in Python
+- ✅ BamWriter: Complete write/read roundtrip verified
+- ✅ SamReader: Can read SAM files, access headers, iterate
+- ✅ GfaWriter: Can create and write GFA files
+- ✅ Python bindings now have **complete format coverage** (except CRAM)
+
+See `KNOWN_ISSUES.md` for detailed documentation.
+
+---
+
 ## Next Steps
 
 **Immediate Priority**:
-1. **Python bindings for BED/GFF3/GTF writers** (15-20 hours) - Enable Python users to write these formats
+1. **CRAM Python bindings** (10-15 hours) - Enable Python users to read CRAM files
+   - Rust implementation is production-ready (v1.12.0)
+   - Native ARM-optimized, unique competitive advantage
+   - Only missing Python wrapper (PyCramReader)
 2. **Documentation updates** - User guides, examples, tutorials
 
 **Future Considerations**:
-- ⏳ VCF writing (optional) - Header management complexity
-- ⏳ Additional format writing (as needed)
+- ⏳ Additional format support (as needed)
+- ⏳ Performance benchmarking for new writers
 
 **NOT on Roadmap**:
 - ❌ CRAM writing (complex, lower priority)
@@ -484,19 +531,28 @@ m.add_class::<PyFastaWriter>()?;
 2. **Linux ARM** (Graviton): 6-10× NEON speedup (portable)
 3. **x86_64**: 1× scalar fallback (portable)
 
-### File Formats (READ + WRITE Support)
+### File Formats
+**READ + WRITE** (Rust + Python):
 - ✅ FASTQ, FASTA (v1.0.0 read, v1.9.0 write)
 - ✅ BAM, SAM (v1.4.0 read, v1.7.0-v1.8.0 write)
-- ✅ CRAM (v1.12.0 read-only) - Production-ready decoder, ARM NEON optimized
-- ✅ BAI index (v1.6.0 read-only)
-- ✅ FAI, TBI indices (v1.9.0 read-only)
-- ✅ BED (BED3/6/12 + narrowPeak) (v1.8.0 read, **v1.10.0+ write - Nov 16, 2025**)
-- ✅ GFA (Segment/Link/Path) (v1.8.0)
-- ✅ VCF (VCF 4.2) (v1.8.0)
-- ✅ GFF3 (hierarchical annotations) (v1.8.0 read, **v1.10.0+ write - Nov 16, 2025**)
-- ✅ GTF (RNA-seq annotations) (v1.10.0 read, **v1.10.0+ write - Nov 16, 2025**)
-- ✅ PAF (minimap2 alignments) (v1.10.0)
+- ✅ BED (BED3/6/12 + narrowPeak) (v1.8.0 read, v1.10.0+ write)
+- ✅ GFA (Segment/Link/Path) (v1.8.0 read/write)
+- ✅ VCF (VCF 4.2) (v1.8.0 read/write)
+- ✅ GFF3 (hierarchical annotations) (v1.8.0 read, v1.10.0+ write)
+- ✅ GTF (RNA-seq annotations) (v1.10.0 read/write)
+- ✅ PAF (minimap2 alignments) (v1.10.0 read/write)
+
+**READ only** (Rust ready, Python pending):
+- ✅ CRAM (v1.12.0) - Production-ready decoder, ARM NEON optimized
+
+**Index support** (READ only):
+- ✅ BAI, CSI (BAM/CRAM indices) (v1.6.0)
+- ✅ FAI (FASTA index) (v1.9.0)
+- ✅ TBI (Tabix index for VCF/BED/GFF) (v1.9.0)
+
+**Not planned**:
 - ❌ BCF (deferred - lower priority)
+- ❌ CRAM writing (complex, lower priority)
 
 ### Tests
 - **660+ library tests passing** (100% pass rate)
@@ -532,7 +588,10 @@ When wrapping up:
 
 ---
 
-**Last Updated**: November 16, 2025 (v1.10.0 + Tab-delimited format writers)
-**Current Phase**: Phase 2 Format Library Sprint - WRITE support for tab-delimited formats ✅ COMPLETE
-**Completed Today**: ✅ BED/GFF3/GTF writers (Rust implementation, 24 tests passing, 3 commits)
-**Next Milestone**: Python bindings for BED/GFF3/GTF writers (15-20 hours)
+**Last Updated**: November 16, 2025 (v1.10.0 + PyO3 registration bug fix)
+**Current Phase**: Phase 2 Format Library Sprint - Format writers COMPLETE, Python bindings at feature parity
+**Completed Today**:
+  - ✅ Fixed PyO3 registration bug (BamWriter, SamReader, GfaWriter) - commit edca698
+  - ✅ Python bindings now have complete format coverage (except CRAM)
+  - ✅ All tab-delimited writers working in Python
+**Next Milestone**: CRAM Python bindings (10-15 hours) - Enable Python users to read CRAM files
