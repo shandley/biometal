@@ -64,6 +64,7 @@
 
 use crate::error::{BiometalError, Result};
 use crate::io::bam::index::{Chunk, VirtualOffset};
+use flate2::read::GzDecoder;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -179,7 +180,25 @@ impl TbiIndex {
         let file = File::open(path.as_ref())?;
         let mut reader = BufReader::new(file);
 
-        Self::parse(&mut reader)
+        // Check if file is gzip-compressed by reading first 2 bytes
+        let mut magic = [0u8; 2];
+        reader.read_exact(&mut magic)?;
+
+        // Gzip magic: 0x1f 0x8b
+        if magic == [0x1f, 0x8b] {
+            // File is gzip-compressed, decompress it
+            // Need to reopen file since we can't rewind BufReader easily
+            let file = File::open(path.as_ref())?;
+            let gz_reader = GzDecoder::new(file);
+            let mut buf_reader = BufReader::new(gz_reader);
+            Self::parse(&mut buf_reader)
+        } else {
+            // File is raw TBI format
+            // Need to reopen since we already consumed 2 bytes
+            let file = File::open(path.as_ref())?;
+            let mut reader = BufReader::new(file);
+            Self::parse(&mut reader)
+        }
     }
 
     /// Parse TBI index from a reader

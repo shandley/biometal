@@ -1,0 +1,18 @@
+query_1_from_chr1_start	200	2	198	+	chr1	10000	6126	6322	196	196	0	tp:A:P	cm:i:92	s1:i:196	s2:i:196	dv:f:0.0007	rl:i:0
+query_1_from_chr1_start	200	2	198	+	chr1	10000	6214	6410	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0
+query_1_from_chr1_start	200	2	198	+	chr1	10000	8914	9110	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0
+query_1_from_chr1_start	200	2	198	+	chr1	10000	1542	1738	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0
+query_1_from_chr1_start	200	2	198	+	chr1	10000	6850	7046	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0
+query_1_from_chr1_start	200	2	198	-	chr1	10000	6098	6294	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0
+query_2_from_chr1_middle	200	2	198	+	chr1	10000	7486	7682	194	196	0	tp:A:P	cm:i:84	s1:i:194	s2:i:194	dv:f:0.0008	rl:i:0
+query_2_from_chr1_middle	200	2	198	+	chr1	10000	2722	2918	194	196	0	tp:A:S	cm:i:84	s1:i:194	dv:f:0.0008	rl:i:0
+query_2_from_chr1_middle	200	2	198	+	chr1	10000	618	814	194	196	0	tp:A:S	cm:i:84	s1:i:194	dv:f:0.0008	rl:i:0
+query_2_from_chr1_middle	200	2	198	+	chr1	10000	5898	6094	194	196	0	tp:A:S	cm:i:84	s1:i:194	dv:f:0.0008	rl:i:0
+query_2_from_chr1_middle	200	2	198	+	chr1	10000	4090	4286	194	196	0	tp:A:S	cm:i:83	s1:i:194	dv:f:0.0016	rl:i:0
+query_2_from_chr1_middle	200	2	198	-	chr1	10000	1450	1646	194	196	0	tp:A:S	cm:i:84	s1:i:194	dv:f:0.0008	rl:i:0
+query_3_from_chr1_end	200	2	198	-	chr1	10000	530	726	196	196	0	tp:A:P	cm:i:92	s1:i:196	s2:i:196	dv:f:0.0007	rl:i:0
+query_3_from_chr1_end	200	2	198	-	chr1	10000	5438	5634	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0
+query_3_from_chr1_end	200	2	198	-	chr1	10000	7410	7606	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0
+query_3_from_chr1_end	200	2	198	+	chr1	10000	6466	6662	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0
+query_3_from_chr1_end	200	2	198	-	chr1	10000	9254	9450	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0
+query_3_from_chr1_end	200	2	198	+	chr1	10000	4210	4406	196	196	0	tp:A:S	cm:i:92	s1:i:196	dv:f:0.0007	rl:i:0

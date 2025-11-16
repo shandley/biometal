@@ -14,7 +14,7 @@ use tempfile::NamedTempFile;
 /// Test round-trip: read real BAM, write to new file, verify identical
 #[test]
 fn test_round_trip_small_bam() -> Result<()> {
-    let input_path = "tests/data/synthetic_100k.bam";
+    let input_path = "tests/data/synthetic/alignment/synthetic_100k.bam";
     let temp_file = NamedTempFile::new()?;
     let output_path = temp_file.path();
 
@@ -82,7 +82,7 @@ fn test_round_trip_small_bam() -> Result<()> {
 /// Test filtering workflow: read BAM, filter by MAPQ, write filtered BAM
 #[test]
 fn test_quality_filtering_workflow() -> Result<()> {
-    let input_path = "tests/data/synthetic_100k.bam";
+    let input_path = "tests/data/synthetic/alignment/synthetic_100k.bam";
     let temp_file = NamedTempFile::new()?;
     let filtered_path = temp_file.path();
 
@@ -142,7 +142,7 @@ fn test_quality_filtering_workflow() -> Result<()> {
 /// Test unmapped reads filtering
 #[test]
 fn test_filter_mapped_reads() -> Result<()> {
-    let input_path = "tests/data/synthetic_100k.bam";
+    let input_path = "tests/data/synthetic/alignment/synthetic_100k.bam";
     let temp_file = NamedTempFile::new()?;
     let mapped_path = temp_file.path();
 
@@ -185,7 +185,7 @@ fn test_filter_mapped_reads() -> Result<()> {
 /// Test region subsetting (write only records in specific position range)
 #[test]
 fn test_region_subsetting() -> Result<()> {
-    let input_path = "tests/data/synthetic_100k.bam";
+    let input_path = "tests/data/synthetic/alignment/synthetic_100k.bam";
     let temp_file = NamedTempFile::new()?;
     let subset_path = temp_file.path();
 
@@ -236,7 +236,7 @@ fn test_region_subsetting() -> Result<()> {
 /// Test streaming large BAM file (100K records)
 #[test]
 fn test_large_file_streaming() -> Result<()> {
-    let input_path = "tests/data/synthetic_100k.bam";
+    let input_path = "tests/data/synthetic/alignment/synthetic_100k.bam";
     let temp_file = NamedTempFile::new()?;
     let output_path = temp_file.path();
 
@@ -280,7 +280,7 @@ fn test_large_file_streaming() -> Result<()> {
 /// Test preserving complex CIGAR operations
 #[test]
 fn test_complex_cigar_preservation() -> Result<()> {
-    let input_path = "tests/data/synthetic_100k.bam";
+    let input_path = "tests/data/synthetic/alignment/synthetic_100k.bam";
     let temp_file = NamedTempFile::new()?;
     let output_path = temp_file.path();
 
@@ -345,7 +345,7 @@ fn test_complex_cigar_preservation() -> Result<()> {
 /// Test header preservation
 #[test]
 fn test_header_preservation() -> Result<()> {
-    let input_path = "tests/data/synthetic_100k.bam";
+    let input_path = "tests/data/synthetic/alignment/synthetic_100k.bam";
     let temp_file = NamedTempFile::new()?;
     let output_path = temp_file.path();
 

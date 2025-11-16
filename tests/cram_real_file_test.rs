@@ -5,10 +5,10 @@ use biometal::io::cram::CramReader;
 #[test]
 fn test_read_real_cram_file() {
     // This CRAM file was created from synthetic_100k.bam using samtools:
-    // samtools view -b tests/data/synthetic_100k.bam chr22:1-10000 | \
-    // samtools view -C -T tests/data/mini_reference.fa -o tests/data/test_mini.cram -
+    // samtools view -b tests/data/synthetic/alignment/synthetic_100k.bam chr22:1-10000 | \
+    // samtools view -C -T tests/data/synthetic/sequence/mini_reference.fa -o tests/data/synthetic/alignment/test_mini.cram -
 
-    let cram_path = "tests/data/test_mini.cram";
+    let cram_path = "tests/data/synthetic/alignment/test_mini.cram";
 
     println!("\n=== Testing CRAM Reader on Real File ===");
     println!("File: {}", cram_path);
@@ -21,7 +21,7 @@ fn test_read_real_cram_file() {
             println!("✓ Successfully opened CRAM file");
 
             // Set reference FASTA for sequence reconstruction
-            cram.set_reference("tests/data/mini_reference.fa")
+            cram.set_reference("tests/data/synthetic/sequence/mini_reference.fa")
                 .expect("Failed to load reference");
             println!("✓ Loaded reference FASTA");
 
@@ -92,7 +92,7 @@ fn test_cram_file_structure() {
     use std::fs::File;
     use std::io::{BufReader, Read};
 
-    let cram_path = "tests/data/test_mini.cram";
+    let cram_path = "tests/data/synthetic/alignment/test_mini.cram";
     let file = File::open(cram_path).expect("Failed to open CRAM file");
     let mut reader = BufReader::new(file);
 

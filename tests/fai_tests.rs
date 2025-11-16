@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 fn test_data_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/fasta")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/synthetic/sequence")
 }
 
 #[test]

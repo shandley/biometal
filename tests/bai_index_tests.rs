@@ -12,7 +12,7 @@ use std::path::PathBuf;
 #[test]
 fn test_bai_load() {
     // Test loading a BAI index file
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
 
@@ -23,7 +23,7 @@ fn test_bai_load() {
 #[test]
 fn test_bai_query_chunks() {
     // Test that querying chunks from index works
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
 
@@ -50,8 +50,8 @@ fn test_bai_query_chunks() {
 fn test_indexed_region_query_small() {
     // Test querying a small region (chr1:1-1000)
     // Expected: ~2985 records (verified with samtools)
-    let bam_path = PathBuf::from("tests/data/synthetic_100k.bam");
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bam_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
 
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
@@ -84,8 +84,8 @@ fn test_indexed_region_query_small() {
 fn test_indexed_region_query_medium() {
     // Test querying a medium region (chr1:1-10000)
     // Expected: ~30693 records (verified with samtools)
-    let bam_path = PathBuf::from("tests/data/synthetic_100k.bam");
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bam_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
 
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
@@ -114,8 +114,8 @@ fn test_indexed_region_query_medium() {
 #[test]
 fn test_indexed_region_query_different_chromosome() {
     // Test querying chr1 vs chr2 returns different results
-    let bam_path = PathBuf::from("tests/data/synthetic_100k.bam");
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bam_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
 
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
@@ -139,8 +139,8 @@ fn test_indexed_region_query_different_chromosome() {
 fn test_indexed_empty_region() {
     // Test querying a region with no records
     // Using a high position where data is unlikely
-    let bam_path = PathBuf::from("tests/data/synthetic_100k.bam");
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bam_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
 
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
@@ -157,8 +157,8 @@ fn test_indexed_empty_region() {
 #[test]
 fn test_nonexistent_reference() {
     // Test querying a reference that doesn't exist
-    let bam_path = PathBuf::from("tests/data/synthetic_100k.bam");
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bam_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
 
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
@@ -171,8 +171,8 @@ fn test_nonexistent_reference() {
 #[test]
 fn test_boundary_conditions() {
     // Test edge cases: very small regions, single base queries
-    let bam_path = PathBuf::from("tests/data/synthetic_100k.bam");
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bam_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
 
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
@@ -193,8 +193,8 @@ fn test_boundary_conditions() {
 #[test]
 fn test_adjacent_regions() {
     // Test that adjacent non-overlapping regions return different results
-    let bam_path = PathBuf::from("tests/data/synthetic_100k.bam");
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bam_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
 
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
@@ -221,8 +221,8 @@ fn test_adjacent_regions() {
 #[test]
 fn test_record_fields_in_indexed_query() {
     // Test that records from indexed queries have all fields populated correctly
-    let bam_path = PathBuf::from("tests/data/synthetic_100k.bam");
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bam_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
 
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");
@@ -256,8 +256,8 @@ fn test_streaming_constant_memory() {
     // Test that indexed queries maintain constant memory (streaming)
     // This is a behavioral test - we iterate through many records
     // and verify the iterator pattern works correctly
-    let bam_path = PathBuf::from("tests/data/synthetic_100k.bam");
-    let bai_path = PathBuf::from("tests/data/synthetic_100k.bam.bai");
+    let bam_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam");
+    let bai_path = PathBuf::from("tests/data/synthetic/alignment/synthetic_100k.bam.bai");
 
     let index = BaiIndex::from_path(&bai_path)
         .expect("Failed to load BAI index");

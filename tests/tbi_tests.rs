@@ -239,3 +239,34 @@ fn test_tbi_multiple_references() {
     // Cleanup
     std::fs::remove_file(&tbi_path).ok();
 }
+
+#[test]
+fn test_real_world_tbi_1000genomes() {
+    // Test with real TBI index created from 1000 Genomes VCF
+    let tbi_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/data/real_world/variants/synthetic_1000g.vcf.gz.tbi");
+
+    let index = TbiIndex::from_path(&tbi_path)
+        .expect("Failed to load real-world TBI index");
+
+    // Verify format is VCF (format() returns TbiFormat enum)
+    // We just check that we can call format() successfully
+    let _format = index.format();
+
+    // Should have chr21 reference
+    let refs = index.references();
+    assert_eq!(refs.len(), 1, "Expected 1 reference sequence");
+    assert_eq!(refs[0].name, "chr21", "Expected chr21 reference");
+
+    // Query a region
+    let chunks = index.query("chr21", 9411000, 9412000)
+        .expect("Query failed for chr21 region");
+
+    // Should find chunks since we have variants in this region
+    assert!(!chunks.is_empty(), "Should find chunks in variant region");
+
+    println!("✅ Real-world TBI index: {} reference(s), {} chunks in test region",
+             refs.len(), chunks.len());
+
+    println!("✅ Real-world 1000 Genomes TBI validation passed");
+}

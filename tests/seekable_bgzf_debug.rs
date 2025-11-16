@@ -8,7 +8,7 @@ fn test_seekable_bgzf_basic_seek() {
     use biometal::io::compression::SeekableBgzfReader;
 
     // Open the BAM file
-    let file = File::open("tests/data/synthetic_100k.bam")
+    let file = File::open("tests/data/synthetic/alignment/synthetic_100k.bam")
         .expect("Failed to open BAM file");
 
     let mut reader = SeekableBgzfReader::new(file)
@@ -52,7 +52,7 @@ fn test_seekable_bgzf_basic_seek() {
 #[test]
 fn test_bgzf_block_at_offset_278() {
     // Let's manually check what's at offset 278 in the file
-    let mut file = File::open("tests/data/synthetic_100k.bam")
+    let mut file = File::open("tests/data/synthetic/alignment/synthetic_100k.bam")
         .expect("Failed to open BAM file");
 
     use std::io::{Seek, SeekFrom};

@@ -10,12 +10,12 @@ use std::io::{Read, Cursor};
 /// Test parsing a real CSI index created by samtools
 #[test]
 fn test_parse_real_samtools_csi() {
-    let csi_path = "tests/data/synthetic_100k.bam.csi";
+    let csi_path = "tests/data/synthetic/alignment/synthetic_100k.bam.csi";
 
     // Skip test if file doesn't exist
     if !Path::new(csi_path).exists() {
         eprintln!("Skipping test: {} not found", csi_path);
-        eprintln!("Run: samtools index -c tests/data/synthetic_100k.bam");
+        eprintln!("Run: samtools index -c tests/data/synthetic/alignment/synthetic_100k.bam");
         return;
     }
 
@@ -82,7 +82,7 @@ fn test_parse_real_samtools_csi() {
 /// Test querying regions in the real CSI index
 #[test]
 fn test_query_real_csi() {
-    let csi_path = "tests/data/synthetic_100k.bam.csi";
+    let csi_path = "tests/data/synthetic/alignment/synthetic_100k.bam.csi";
 
     if !Path::new(csi_path).exists() {
         eprintln!("Skipping test: {} not found", csi_path);
@@ -153,7 +153,7 @@ fn test_query_real_csi() {
 /// Test that CSI results match the structure we expect from samtools
 #[test]
 fn test_csi_structure_validation() {
-    let csi_path = "tests/data/synthetic_100k.bam.csi";
+    let csi_path = "tests/data/synthetic/alignment/synthetic_100k.bam.csi";
 
     if !Path::new(csi_path).exists() {
         eprintln!("Skipping test: {} not found", csi_path);

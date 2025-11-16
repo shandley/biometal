@@ -21,7 +21,7 @@
 //! # GTF vs GFF3 Differences
 //!
 //! - **Attribute syntax**: GTF uses `gene_id "value";` vs GFF3's `ID=value`
-//! - **Required attributes**: `gene_id` and `transcript_id` are mandatory
+//! - **Required attributes**: `gene_id` mandatory for all; `transcript_id` mandatory for transcript-level features (exon, CDS, etc.), optional for gene features
 //! - **Feature types**: Limited set (CDS, exon, start_codon, stop_codon, UTR, etc.)
 //! - **Hierarchy**: Implicit via `gene_id`/`transcript_id` (not explicit Parent/ID)
 //!
@@ -42,7 +42,7 @@
 //! assert_eq!(record.start, 11869);
 //! assert_eq!(record.end, 12227);
 //! assert_eq!(record.gene_id(), "ENSG00000223972");
-//! assert_eq!(record.transcript_id(), "ENST00000456328");
+//! assert_eq!(record.transcript_id(), Some("ENST00000456328"));
 //! # Ok(())
 //! # }
 //! ```
@@ -154,7 +154,9 @@ impl GtfRecord {
         &self.attributes["gene_id"]
     }
 
-    /// Get transcript_id (required attribute in GTF)
+    /// Get transcript_id (required for transcript-level features, optional for gene features)
+    ///
+    /// Returns `None` for gene features, `Some(&str)` for transcript/exon/CDS features.
     ///
     /// # Example
     ///
@@ -165,13 +167,16 @@ impl GtfRecord {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let line = r#"chr1    .    exon    100    200    .    +    .    gene_id "GENE1"; transcript_id "TX1";"#;
     /// let record = GtfRecord::from_line(line)?;
-    /// assert_eq!(record.transcript_id(), "TX1");
+    /// assert_eq!(record.transcript_id(), Some("TX1"));
+    ///
+    /// let gene_line = r#"chr1    .    gene    100    200    .    +    .    gene_id "GENE1";"#;
+    /// let gene_record = GtfRecord::from_line(gene_line)?;
+    /// assert_eq!(gene_record.transcript_id(), None);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn transcript_id(&self) -> &str {
-        // Safe: validated in from_line()
-        &self.attributes["transcript_id"]
+    pub fn transcript_id(&self) -> Option<&str> {
+        self.attributes.get("transcript_id").map(|s| s.as_str())
     }
 
     /// Get optional gene_name attribute
@@ -291,11 +296,14 @@ impl TabDelimitedRecord for GtfRecord {
                 reason: "Missing required attribute 'gene_id'".to_string(),
             });
         }
-        if !attributes.contains_key("transcript_id") {
+
+        // transcript_id is only required for transcript-level features (not gene features)
+        // Per GTF spec: gene features don't have transcript_id
+        if feature != "gene" && !attributes.contains_key("transcript_id") {
             return Err(FormatError::InvalidField {
                 field: "attributes".to_string(),
                 line: 0,
-                reason: "Missing required attribute 'transcript_id'".to_string(),
+                reason: format!("Missing required attribute 'transcript_id' for feature type '{}'", feature),
             });
         }
 
@@ -506,7 +514,7 @@ mod tests {
 		assert_eq!(record.end, 12227);
 		assert_eq!(record.strand, Strand::Forward);
 		assert_eq!(record.gene_id(), "ENSG00000223972");
-		assert_eq!(record.transcript_id(), "ENST00000456328");
+		assert_eq!(record.transcript_id(), Some("ENST00000456328"));
 	}
 
 	#[test]
@@ -674,7 +682,7 @@ chr1	.	exon	100	150	.	+	.	gene_id "G1"; transcript_id "T1";
 
 		// Required attributes should always be accessible
 		assert_eq!(record.gene_id(), "G1");
-		assert_eq!(record.transcript_id(), "T1");
+		assert_eq!(record.transcript_id(), Some("T1"));
 	}
 
 	#[test]
@@ -709,5 +717,17 @@ chr1	.	exon	100	150	.	+	.	gene_id "G1"; transcript_id "T1";
 		// Should fail on gene_id first
 		let err = result.unwrap_err();
 		assert!(err.to_string().contains("gene_id"));
+	}
+
+	#[test]
+	fn test_gtf_gene_without_transcript_id() {
+		// Gene features should be valid without transcript_id
+		let line = r#"chr1	havana	gene	100	500	.	+	.	gene_id "ENSG00000001"; gene_name "ABC1";"#;
+		let record = GtfRecord::from_line(line).unwrap();
+
+		assert_eq!(record.feature, "gene");
+		assert_eq!(record.gene_id(), "ENSG00000001");
+		assert_eq!(record.transcript_id(), None);  // Gene features don't have transcript_id
+		assert_eq!(record.gene_name(), Some("ABC1"));
 	}
 }

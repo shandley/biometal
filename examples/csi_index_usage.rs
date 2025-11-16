@@ -75,8 +75,7 @@ fn main() -> Result<()> {
         } else {
             println!("  Name: <not available>");
         }
-        println!("  Bins: {}", reference.bins.len());
-        println!("  Linear intervals: {}", reference.intervals.len());
+        println!("  Bins: {} (Note: CSI uses bins only, no linear intervals)", reference.bins.len());
 
         if !reference.bins.is_empty() {
             println!("  First bin:");
