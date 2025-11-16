@@ -63,6 +63,7 @@ pub mod gfa;
 pub mod gff;
 pub mod gff_writer;
 pub mod gtf;
+pub mod gtf_writer;
 pub mod index;
 pub mod paf;
 pub mod primitives;
