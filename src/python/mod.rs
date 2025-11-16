@@ -14,6 +14,7 @@ mod record_ops;
 mod trimming;
 mod masking;
 mod bam;
+mod cram;
 mod bed;
 mod gfa;
 mod vcf;
@@ -33,6 +34,7 @@ pub use record_ops::*;
 pub use trimming::*;
 pub use masking::*;
 pub use bam::*;
+pub use cram::*;
 pub use bed::*;
 pub use gfa::*;
 pub use vcf::*;
@@ -67,6 +69,7 @@ fn biometal(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFastqStream>()?;
     m.add_class::<PyFastaStream>()?;
     m.add_class::<PyBamReader>()?;
+    m.add_class::<PyCramReader>()?;
 
     // Register writer classes
     m.add_class::<PyFastqWriter>()?;
