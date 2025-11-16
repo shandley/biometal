@@ -185,11 +185,13 @@ Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression sp
 - ✅ Property-based testing (23 tests) - v1.8.0
 - ✅ Real-world validation (6 integration tests) - v1.8.0
 
-### Next: WRITE Support (In Progress)
-- ⏳ FASTQ/FASTA writing - Starting now
-- ⏳ BED/GFF/GTF writing - After FASTQ/FASTA
-- ⏳ VCF writing - After tab-delimited formats
-- ⏳ Python bindings for VCF, GFA, GFF - Feature parity
+### WRITE Support Progress
+- ✅ FASTQ/FASTA writing - Complete (v1.9.0)
+- ✅ BED writing (BED3/6/12 + narrowPeak) - **Complete (Nov 16, 2025)**
+- ✅ GFF3 writing - **Complete (Nov 16, 2025)**
+- ✅ GTF writing - **Complete (Nov 16, 2025)**
+- ⏳ Python bindings for BED/GFF3/GTF writers - Next priority
+- ⏳ VCF writing (optional) - Future consideration
 - ⏳ BAM writing (optional) - Evaluate need
 
 ### Strategic Context
@@ -208,24 +210,50 @@ Switched to cloudflare_zlib backend: 1.67× decompression, 2.29× compression sp
 
 ---
 
-## Next Steps: File Writing Support
+## Recent Completions: Tab-Delimited Format Writers (November 16, 2025)
 
-**Current Focus**: Add WRITE support to existing formats (currently read-only)
+**✅ COMPLETED**: BED, GFF3, and GTF format writers
 
-**Priority Order** (see discussion with user):
-1. **FASTQ/FASTA Writing** (10-15 hours) - Easiest, high value
-2. **BED/GFF/GTF Writing** (15-20 hours) - Tab-delimited, straightforward
-3. **VCF Writing** (20-30 hours) - Header management + compression
-4. **Python Bindings** for VCF, GFA, GFF (30-40 hours) - Feature parity
-5. **BAM Writing** (40-60 hours, optional) - Most complex, evaluate need
+### BED Writer (commit 6075417)
+- **Features**: BED3, BED6, BED12, narrowPeak support
+- **Architecture**: Streaming write, automatic compression (.gz, .bgz), validation
+- **Testing**: 3 tests (roundtrip + validation)
+- **Implementation**: `src/formats/bed_writer.rs` (~550 lines)
 
-**Why Writing Matters**:
-- Enables "read → filter → write" workflows
-- Currently users must use other tools for writing
-- Completes the format library story
+### GFF3 Writer (commit 7d9fa35)
+- **Features**: Full GFF3 spec, attribute formatting (`ID=value`), automatic header
+- **Architecture**: Streaming write, compression, comprehensive validation
+- **Testing**: 9 tests (roundtrip + attribute format + validation)
+- **Implementation**: `src/formats/gff_writer.rs` (~400 lines)
+
+### GTF Writer (commit a307c9f)
+- **Features**: GTF syntax (`gene_id "value"`), required attribute validation
+- **Architecture**: Streaming write, compression, GTF-specific validation
+- **Testing**: 12 tests (roundtrip + gene/transcript features + validation)
+- **Implementation**: `src/formats/gtf_writer.rs` (~475 lines)
+
+### Shared Design Patterns
+All three writers follow identical biometal patterns:
+- `CompressedWriter` for automatic compression detection
+- `DataSink` abstraction (file/stdout)
+- Streaming architecture (constant memory)
+- Comprehensive validation before writing
+- Methods: `create()`, `stdout()`, `write_record()`, `write_all()`, `finish()`
+
+---
+
+## Next Steps
+
+**Immediate Priority**:
+1. **Python bindings for BED/GFF3/GTF writers** (15-20 hours) - Enable Python users to write these formats
+2. **Documentation updates** - User guides, examples, tutorials
+
+**Future Considerations**:
+- ⏳ VCF writing (optional) - Header management complexity
+- ⏳ Additional format writing (as needed)
 
 **NOT on Roadmap**:
-- ❌ CRAM format (complex, lower priority, defer)
+- ❌ CRAM writing (complex, lower priority)
 - ❌ Performance optimization (Rules 3+4 disabled)
 - ❌ GPU/Neural Engine work (archived)
 
@@ -456,27 +484,27 @@ m.add_class::<PyFastaWriter>()?;
 2. **Linux ARM** (Graviton): 6-10× NEON speedup (portable)
 3. **x86_64**: 1× scalar fallback (portable)
 
-### File Formats (READ Support)
-- ✅ FASTQ, FASTA (v1.0.0)
-- ✅ BAM, SAM (v1.4.0) - SAM writing supported
-- ✅ CRAM (v1.12.0) - Production-ready decoder, ARM NEON optimized
-- ✅ BAI index (v1.6.0)
-- ✅ FAI, TBI indices (v1.9.0)
-- ✅ BED (BED3/6/12 + narrowPeak) (v1.8.0, v1.10.0)
+### File Formats (READ + WRITE Support)
+- ✅ FASTQ, FASTA (v1.0.0 read, v1.9.0 write)
+- ✅ BAM, SAM (v1.4.0 read, v1.7.0-v1.8.0 write)
+- ✅ CRAM (v1.12.0 read-only) - Production-ready decoder, ARM NEON optimized
+- ✅ BAI index (v1.6.0 read-only)
+- ✅ FAI, TBI indices (v1.9.0 read-only)
+- ✅ BED (BED3/6/12 + narrowPeak) (v1.8.0 read, **v1.10.0+ write - Nov 16, 2025**)
 - ✅ GFA (Segment/Link/Path) (v1.8.0)
 - ✅ VCF (VCF 4.2) (v1.8.0)
-- ✅ GFF3 (hierarchical annotations) (v1.8.0)
-- ✅ GTF (RNA-seq annotations) (v1.10.0)
+- ✅ GFF3 (hierarchical annotations) (v1.8.0 read, **v1.10.0+ write - Nov 16, 2025**)
+- ✅ GTF (RNA-seq annotations) (v1.10.0 read, **v1.10.0+ write - Nov 16, 2025**)
 - ✅ PAF (minimap2 alignments) (v1.10.0)
-- ⏳ **WRITE Support**: In progress for FASTQ, FASTA, BED, GTF, VCF
 - ❌ BCF (deferred - lower priority)
 
 ### Tests
-- **626 passing** (100% pass rate)
-  - 400 library tests (includes 46 CRAM tests with NEON optimizations)
-  - See CHANGELOG.md for breakdown
+- **660+ library tests passing** (100% pass rate)
+  - Includes 46 CRAM tests with NEON optimizations
+  - **New**: 24 tab-delimited writer tests (BED: 3, GFF3: 9, GTF: 12)
   - Property-based tests (format invariants)
   - Real-world integration tests (ENCODE, UCSC, Ensembl, 1000 Genomes, CRAM validation)
+  - See CHANGELOG.md for full breakdown
 
 ---
 
@@ -504,7 +532,7 @@ When wrapping up:
 
 ---
 
-**Last Updated**: November 14, 2025 (v1.10.0 + FASTQ/FASTA writing support)
-**Current Phase**: Phase 2 Format Library Sprint - Adding WRITE support
-**Completed Today**: ✅ FASTQ/FASTA writers (Rust + Python bindings, all tests passing)
-**Next Milestone**: BED/GFF/GTF writing support (15-20 hours)
+**Last Updated**: November 16, 2025 (v1.10.0 + Tab-delimited format writers)
+**Current Phase**: Phase 2 Format Library Sprint - WRITE support for tab-delimited formats ✅ COMPLETE
+**Completed Today**: ✅ BED/GFF3/GTF writers (Rust implementation, 24 tests passing, 3 commits)
+**Next Milestone**: Python bindings for BED/GFF3/GTF writers (15-20 hours)

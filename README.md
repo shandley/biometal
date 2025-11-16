@@ -56,7 +56,8 @@ biometal now supports **12+ bioinformatics file formats** with production-ready 
 
 All formats support:
 - ✅ Streaming architecture (constant ~5 MB memory)
-- ✅ Automatic gzip decompression (`.gz` files)
+- ✅ **Read AND Write** capabilities (FASTQ, FASTA, BED, GFF3, GTF) **[NEW in Nov 2025]**
+- ✅ Automatic compression/decompression (`.gz`, `.bgz` files)
 - ✅ Python bindings with optimized memory usage
 - ✅ Real-world validation (ENCODE, UCSC, Ensembl, 1000 Genomes)
 
@@ -108,6 +109,45 @@ for record in stream:
     counts = biometal.count_bases(record.sequence)
     mean_q = biometal.mean_quality(record.quality)
 ```
+
+### 📝 NEW: Writing Genomic Data (Nov 2025)
+
+biometal now supports **writing** for tab-delimited formats with automatic compression:
+
+**Write BED intervals:**
+```rust
+use biometal::formats::bed_writer::BedWriter;
+use biometal::formats::bed::Bed6Record;
+
+let mut writer = BedWriter::create("peaks.bed.gz")?;  // Auto-compresses
+let record = Bed6Record { /* ... */ };
+writer.write_bed6(&record)?;
+writer.finish()?;  // IMPORTANT: Flush data
+```
+
+**Write GFF3 annotations:**
+```rust
+use biometal::formats::gff_writer::Gff3Writer;
+
+let mut writer = Gff3Writer::create("genes.gff3.gz")?;
+writer.write_record(&record)?;  // Auto-writes header
+writer.finish()?;
+```
+
+**Write GTF for RNA-seq:**
+```rust
+use biometal::formats::gtf_writer::GtfWriter;
+
+let mut writer = GtfWriter::create("transcripts.gtf.gz")?;
+writer.write_record(&record)?;  // Validates required attributes
+writer.finish()?;
+```
+
+All writers support:
+- ✅ Automatic `.gz`/`.bgz` compression (fast cloudflare_zlib backend)
+- ✅ Streaming to `stdout` for pipelines
+- ✅ Comprehensive validation before writing
+- ✅ Constant memory (write terabyte-scale files)
 
 ---
 
