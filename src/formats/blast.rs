@@ -47,9 +47,6 @@ use crate::formats::primitives::{
     fields::{parse_required, split_fields},
     TabDelimitedParser, TabDelimitedRecord, Result,
 };
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
 
 /// BLAST tabular alignment record (outfmt 6/7)
 ///
