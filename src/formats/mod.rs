@@ -68,7 +68,6 @@ pub mod index;
 pub mod paf;
 pub mod primitives;
 pub mod vcf;
-pub mod vcf_writer;
 
 // Re-export commonly used types
 pub use primitives::{
